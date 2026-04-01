@@ -1,21 +1,22 @@
 import { useState, useMemo } from 'react';
 import { getGroupedBookings, confirmBooking, cancelBooking, getBookings } from '@/store/bookingStore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Search, CheckCircle, XCircle, FileText, Users, MapPin, DollarSign, CalendarDays } from 'lucide-react';
+import { Search, CheckCircle, XCircle, FileText, TrendingUp, MapPin, CalendarDays, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
-import { parks, companies } from '@/data/parks';
+import { parks } from '@/data/parks';
 
 export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [yearFilter, setYearFilter] = useState<string>('all');
-  const [parkFilter, setParkFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
+  const [parkFilter, setParkFilter] = useState('all');
+  const [expandedVoucher, setExpandedVoucher] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const allBookings = useMemo(() => getBookings(), [refreshKey]);
@@ -42,53 +43,48 @@ export default function AdminPage() {
     pending: allBookings.filter(b => b.status === 'pending').length,
     revenue: allBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.totalAmount, 0),
     companies: new Set(allBookings.map(b => b.companyName)).size,
+    parksUsed: new Set(allBookings.map(b => b.parkId)).size,
   }), [allBookings]);
 
-  const handleConfirm = (voucherNo: string) => {
-    confirmBooking(voucherNo);
-    setRefreshKey(k => k + 1);
-    toast.success(`Booking ${voucherNo} confirmed`);
-  };
-
-  const handleCancel = (voucherNo: string) => {
-    cancelBooking(voucherNo);
-    setRefreshKey(k => k + 1);
-    toast.info(`Booking ${voucherNo} cancelled`);
-  };
+  const handleConfirm = (voucherNo: string) => { confirmBooking(voucherNo); setRefreshKey(k => k + 1); toast.success(`Booking ${voucherNo} confirmed`); };
+  const handleCancel = (voucherNo: string) => { cancelBooking(voucherNo); setRefreshKey(k => k + 1); toast.info(`Booking ${voucherNo} cancelled`); };
 
   const statusBadge = (status: string) => {
-    switch (status) {
-      case 'confirmed': return <Badge className="bg-success text-success-foreground">Confirmed</Badge>;
-      case 'pending': return <Badge className="bg-warning text-warning-foreground">Pending</Badge>;
-      case 'cancelled': return <Badge variant="destructive">Cancelled</Badge>;
-      default: return null;
-    }
+    const styles: Record<string, string> = {
+      confirmed: 'bg-success text-success-foreground',
+      pending: 'bg-warning text-warning-foreground',
+      cancelled: 'bg-destructive text-destructive-foreground',
+    };
+    return <Badge className={`${styles[status] || ''} text-xs font-medium`}>{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
   };
 
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
       <div className="container mx-auto px-4">
         <div className="mb-10">
-          <h1 className="font-serif text-3xl md:text-4xl font-bold mb-2">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage all campsite bookings, confirm payments, and view history.</p>
+          <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Administration</p>
+          <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Booking Dashboard</h1>
+          <p className="text-muted-foreground">Manage bookings, confirm payments, and view history across all campsites.</p>
         </div>
 
-        {/* Stats */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { icon: FileText, label: 'Total Bookings', value: stats.total, color: 'text-primary' },
-            { icon: CheckCircle, label: 'Confirmed', value: stats.confirmed, color: 'text-success' },
-            { icon: CalendarDays, label: 'Pending', value: stats.pending, color: 'text-warning' },
-            { icon: DollarSign, label: 'Total Revenue', value: `P${stats.revenue.toLocaleString()}`, color: 'text-safari-gold' },
-          ].map(({ icon: Icon, label, value, color }) => (
-            <Card key={label}>
-              <CardContent className="pt-6 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                  <Icon className={`h-5 w-5 ${color}`} />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="text-2xl font-bold">{value}</p>
+            { icon: FileText, label: 'Total Bookings', value: stats.total },
+            { icon: CheckCircle, label: 'Confirmed', value: stats.confirmed },
+            { icon: CalendarDays, label: 'Pending', value: stats.pending },
+            { icon: DollarSign, label: 'Revenue', value: `P${stats.revenue.toLocaleString()}` },
+          ].map(({ icon: Icon, label, value }) => (
+            <Card key={label} className="border-0 shadow-md">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                    <Icon className="h-5 w-5 text-secondary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
+                    <p className="text-xl font-display font-bold">{value}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -96,8 +92,8 @@ export default function AdminPage() {
         </div>
 
         {/* Filters */}
-        <Card className="mb-8">
-          <CardContent className="pt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="mb-8 border-0 shadow-md">
+          <CardContent className="pt-5 pb-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search company or voucher..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
@@ -115,89 +111,111 @@ export default function AdminPage() {
               <SelectTrigger><SelectValue placeholder="Year" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Years</SelectItem>
-                {years.map(y => (
-                  <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                ))}
+                {years.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={parkFilter} onValueChange={setParkFilter}>
               <SelectTrigger><SelectValue placeholder="Park" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Parks</SelectItem>
-                {parks.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
+                {parks.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </CardContent>
         </Card>
 
-        {/* Bookings Table */}
+        {/* Bookings */}
         {filteredGroups.length === 0 ? (
-          <div className="text-center py-20">
-            <FileText className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-muted-foreground">No bookings found. Bookings made on the Book a Site page will appear here.</p>
+          <div className="text-center py-24">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <FileText className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <p className="text-muted-foreground font-medium mb-1">No bookings found</p>
+            <p className="text-sm text-muted-foreground">Bookings made on the Book Now page will appear here.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredGroups.map(group => (
-              <Card key={group.voucherNo}>
-                <CardHeader className="pb-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="font-serif text-lg flex items-center gap-2">
-                        <Users className="h-4 w-4 text-primary" />
-                        {group.companyName}
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Voucher: <span className="font-mono">{group.voucherNo}</span> • {format(new Date(group.createdAt), 'dd MMM yyyy')}
-                        {group.contactEmail && ` • ${group.contactEmail}`}
-                      </p>
+          <div className="space-y-3">
+            {filteredGroups.map(group => {
+              const isExpanded = expandedVoucher === group.voucherNo;
+              return (
+                <Card key={group.voucherNo} className="border-0 shadow-md overflow-hidden">
+                  <button
+                    className="w-full text-left p-5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                    onClick={() => setExpandedVoucher(isExpanded ? null : group.voucherNo)}
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                        <Users className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-display font-semibold truncate">{group.companyName}</span>
+                          {statusBadge(group.status)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          #{group.voucherNo} • {format(new Date(group.createdAt), 'dd MMM yyyy')} • {group.bookings.length} site{group.bookings.length > 1 ? 's' : ''}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {statusBadge(group.status)}
-                      <span className="font-bold text-lg">P{group.grandTotal.toLocaleString()}</span>
-                      {group.status === 'pending' && (
-                        <>
-                          <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground" onClick={() => handleConfirm(group.voucherNo)}>
-                            <CheckCircle className="h-4 w-4 mr-1" /> Confirm
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleCancel(group.voucherNo)}>
-                            <XCircle className="h-4 w-4 mr-1" /> Cancel
-                          </Button>
-                        </>
-                      )}
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="font-display font-bold text-lg hidden sm:block">P{group.grandTotal.toLocaleString()}</span>
+                      {isExpanded ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Park</TableHead>
-                        <TableHead>Site</TableHead>
-                        <TableHead>Arrival</TableHead>
-                        <TableHead>Departure</TableHead>
-                        <TableHead>Nights</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {group.bookings.map(b => (
-                        <TableRow key={b.id}>
-                          <TableCell className="font-medium">{b.parkName}</TableCell>
-                          <TableCell>{b.siteName}</TableCell>
-                          <TableCell>{format(new Date(b.arrivalDate), 'dd MMM yyyy')}</TableCell>
-                          <TableCell>{format(new Date(b.departureDate), 'dd MMM yyyy')}</TableCell>
-                          <TableCell>{b.nights}</TableCell>
-                          <TableCell className="text-right font-medium">P{b.totalAmount.toLocaleString()}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            ))}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t">
+                      <div className="p-5">
+                        <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
+                          {group.contactEmail && <span>✉ {group.contactEmail}</span>}
+                          {group.contactPhone && <span>☎ {group.contactPhone}</span>}
+                        </div>
+                        <div className="rounded-xl border overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/50">
+                                <TableHead className="font-semibold text-xs uppercase tracking-wider">Park</TableHead>
+                                <TableHead className="font-semibold text-xs uppercase tracking-wider">Site</TableHead>
+                                <TableHead className="font-semibold text-xs uppercase tracking-wider">Arrival</TableHead>
+                                <TableHead className="font-semibold text-xs uppercase tracking-wider">Departure</TableHead>
+                                <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Nights</TableHead>
+                                <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">Amount</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {group.bookings.map(b => (
+                                <TableRow key={b.id}>
+                                  <TableCell className="font-medium">{b.parkName}</TableCell>
+                                  <TableCell>{b.siteName}</TableCell>
+                                  <TableCell>{format(new Date(b.arrivalDate), 'dd MMM yyyy')}</TableCell>
+                                  <TableCell>{format(new Date(b.departureDate), 'dd MMM yyyy')}</TableCell>
+                                  <TableCell className="text-center">{b.nights}</TableCell>
+                                  <TableCell className="text-right font-medium">P{b.totalAmount.toLocaleString()}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                          <span className="font-display font-bold text-xl sm:hidden">P{group.grandTotal.toLocaleString()}</span>
+                          {group.status === 'pending' && (
+                            <div className="flex gap-2 ml-auto">
+                              <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground rounded-lg" onClick={() => handleConfirm(group.voucherNo)}>
+                                <CheckCircle className="h-4 w-4 mr-1.5" /> Confirm Payment
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5 rounded-lg" onClick={() => handleCancel(group.voucherNo)}>
+                                <XCircle className="h-4 w-4 mr-1.5" /> Cancel
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
