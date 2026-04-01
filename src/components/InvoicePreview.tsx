@@ -101,7 +101,7 @@ export function InvoicePreview({ group, onClose, onConfirm }: InvoicePreviewProp
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button asChild className="flex-1 bg-green-600 hover:bg-green-700 text-accent-foreground">
+            <Button asChild className="flex-1 bg-whatsapp hover:bg-whatsapp/90 text-whatsapp-foreground">
               <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
                 <MessageCircle className="h-4 w-4 mr-2" /> Send via WhatsApp
               </a>
