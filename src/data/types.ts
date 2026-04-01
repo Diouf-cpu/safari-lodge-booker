@@ -1,6 +1,8 @@
 export interface Park {
   id: string;
   name: string;
+  description?: string;
+  image?: string;
   sites: CampSite[];
 }
 
@@ -8,6 +10,7 @@ export interface CampSite {
   id: string;
   name: string;
   parkId: string;
+  coordinates?: string;
 }
 
 export interface Booking {
