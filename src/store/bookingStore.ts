@@ -1,120 +1,175 @@
-import { Booking, BookingGroup } from '@/data/types';
-
-const STORAGE_KEY = 'boga_bookings';
+import { supabase } from '@/integrations/supabase/client';
 
 function generateVoucherNo(): string {
   const num = 30000 + Math.floor(Math.random() * 10000);
   return num.toString();
 }
 
-function generateId(): string {
-  return Math.random().toString(36).substr(2, 9);
+export async function getBookings() {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
-export function getBookings(): Booking[] {
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
+export async function getBookingGroups() {
+  const { data, error } = await supabase
+    .from('booking_groups')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
-export function saveBookings(bookings: Booking[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
-}
-
-export function addBookingGroup(
+export async function addBookingGroup(
   companyName: string,
   contactEmail: string,
   contactPhone: string,
   items: { parkId: string; parkName: string; siteId: string; siteName: string; arrivalDate: string; departureDate: string; nights: number; ratePerNight: number; totalAmount: number }[]
-): BookingGroup {
+) {
   const voucherNo = generateVoucherNo();
-  const groupId = generateId();
-  const now = new Date().toISOString();
+  const grandTotal = items.reduce((s, i) => s + i.totalAmount, 0);
 
-  const newBookings: Booking[] = items.map(item => ({
-    id: generateId(),
-    voucherNo,
-    companyName,
-    contactEmail,
-    contactPhone,
-    ...item,
+  const { data: group, error: groupError } = await supabase
+    .from('booking_groups')
+    .insert({
+      voucher_no: voucherNo,
+      company_name: companyName,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
+      grand_total: grandTotal,
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (groupError) throw groupError;
+
+  const bookingRows = items.map(item => ({
+    group_id: group.id,
+    voucher_no: voucherNo,
+    company_name: companyName,
+    contact_email: contactEmail,
+    contact_phone: contactPhone,
+    park_id: item.parkId,
+    park_name: item.parkName,
+    site_id: item.siteId,
+    site_name: item.siteName,
+    arrival_date: item.arrivalDate,
+    departure_date: item.departureDate,
+    nights: item.nights,
+    rate_per_night: item.ratePerNight,
+    total_amount: item.totalAmount,
     status: 'pending' as const,
-    createdAt: now,
   }));
 
-  const existing = getBookings();
-  saveBookings([...existing, ...newBookings]);
+  const { error: bookingsError } = await supabase
+    .from('bookings')
+    .insert(bookingRows);
 
-  return {
-    id: groupId,
-    voucherNo,
-    companyName,
-    contactEmail,
-    contactPhone,
-    bookings: newBookings,
-    grandTotal: newBookings.reduce((s, b) => s + b.totalAmount, 0),
-    status: 'pending',
-    createdAt: now,
-  };
+  if (bookingsError) throw bookingsError;
+
+  return { ...group, voucherNo: group.voucher_no };
 }
 
-export function confirmBooking(voucherNo: string) {
-  const bookings = getBookings();
-  const updated = bookings.map(b =>
-    b.voucherNo === voucherNo ? { ...b, status: 'confirmed' as const } : b
-  );
-  saveBookings(updated);
+export async function confirmBooking(voucherNo: string) {
+  await supabase
+    .from('booking_groups')
+    .update({ status: 'confirmed' })
+    .eq('voucher_no', voucherNo);
+  await supabase
+    .from('bookings')
+    .update({ status: 'confirmed' })
+    .eq('voucher_no', voucherNo);
 }
 
-export function cancelBooking(voucherNo: string) {
-  const bookings = getBookings();
-  const updated = bookings.map(b =>
-    b.voucherNo === voucherNo ? { ...b, status: 'cancelled' as const } : b
-  );
-  saveBookings(updated);
+export async function cancelBooking(voucherNo: string) {
+  await supabase
+    .from('booking_groups')
+    .update({ status: 'cancelled' })
+    .eq('voucher_no', voucherNo);
+  await supabase
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('voucher_no', voucherNo);
 }
 
-export function isDateRangeAvailable(
+export async function isDateRangeAvailable(
   siteId: string,
   arrivalDate: string,
-  departureDate: string,
-  excludeBookingId?: string
-): boolean {
-  const bookings = getBookings().filter(
-    b => b.siteId === siteId && b.status !== 'cancelled' && b.id !== excludeBookingId
-  );
+  departureDate: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('bookings')
+    .select('arrival_date, departure_date')
+    .eq('site_id', siteId)
+    .neq('status', 'cancelled');
+
+  if (!data) return true;
+
   const arrival = new Date(arrivalDate);
   const departure = new Date(departureDate);
 
-  return !bookings.some(b => {
-    const bArr = new Date(b.arrivalDate);
-    const bDep = new Date(b.departureDate);
+  return !data.some(b => {
+    const bArr = new Date(b.arrival_date);
+    const bDep = new Date(b.departure_date);
     return arrival < bDep && departure > bArr;
   });
 }
 
-export function getBookedDatesForSite(siteId: string): { start: string; end: string; company: string; status: string }[] {
-  return getBookings()
-    .filter(b => b.siteId === siteId && b.status !== 'cancelled')
-    .map(b => ({ start: b.arrivalDate, end: b.departureDate, company: b.companyName, status: b.status }));
+export async function getBookedDatesForSite(siteId: string) {
+  const { data } = await supabase
+    .from('bookings')
+    .select('arrival_date, departure_date, company_name, status')
+    .eq('site_id', siteId)
+    .neq('status', 'cancelled');
+
+  return (data || []).map(b => ({
+    start: b.arrival_date,
+    end: b.departure_date,
+    company: b.company_name,
+    status: b.status,
+  }));
 }
 
-export function getGroupedBookings(): BookingGroup[] {
-  const bookings = getBookings();
-  const groups: Record<string, Booking[]> = {};
-  bookings.forEach(b => {
-    if (!groups[b.voucherNo]) groups[b.voucherNo] = [];
-    groups[b.voucherNo].push(b);
-  });
+export async function getGroupedBookings() {
+  const { data: groups } = await supabase
+    .from('booking_groups')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-  return Object.entries(groups).map(([voucherNo, items]) => ({
-    id: items[0].id,
-    voucherNo,
-    companyName: items[0].companyName,
-    contactEmail: items[0].contactEmail,
-    contactPhone: items[0].contactPhone,
-    bookings: items,
-    grandTotal: items.reduce((s, b) => s + b.totalAmount, 0),
-    status: items[0].status,
-    createdAt: items[0].createdAt,
+  if (!groups) return [];
+
+  const { data: allBookings } = await supabase
+    .from('bookings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  return groups.map(g => ({
+    ...g,
+    voucherNo: g.voucher_no,
+    companyName: g.company_name,
+    contactEmail: g.contact_email,
+    contactPhone: g.contact_phone,
+    grandTotal: Number(g.grand_total),
+    bookings: (allBookings || [])
+      .filter(b => b.group_id === g.id)
+      .map(b => ({
+        ...b,
+        voucherNo: b.voucher_no,
+        companyName: b.company_name,
+        contactEmail: b.contact_email,
+        contactPhone: b.contact_phone,
+        parkId: b.park_id,
+        parkName: b.park_name,
+        siteId: b.site_id,
+        siteName: b.site_name,
+        arrivalDate: b.arrival_date,
+        departureDate: b.departure_date,
+        ratePerNight: Number(b.rate_per_night),
+        totalAmount: Number(b.total_amount),
+      })),
   }));
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { parks } from '@/data/parks';
 import { getBookedDatesForSite } from '@/store/bookingStore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,13 +11,14 @@ export default function AvailabilityPage() {
   const [selectedPark, setSelectedPark] = useState('');
   const [selectedSite, setSelectedSite] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [bookedRanges, setBookedRanges] = useState<{ start: string; end: string; company: string; status: string }[]>([]);
 
   const park = parks.find(p => p.id === selectedPark);
   const site = park?.sites.find(s => s.id === selectedSite);
 
-  const bookedRanges = useMemo(() => {
-    if (!selectedSite) return [];
-    return getBookedDatesForSite(selectedSite);
+  useEffect(() => {
+    if (!selectedSite) { setBookedRanges([]); return; }
+    getBookedDatesForSite(selectedSite).then(setBookedRanges);
   }, [selectedSite]);
 
   const monthStart = startOfMonth(currentMonth);

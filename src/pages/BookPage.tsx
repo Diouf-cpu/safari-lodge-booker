@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT, companies } from '@/data/parks';
 import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
@@ -12,7 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight } from 'lucide-react';
-import { differenceInDays, format, eachDayOfInterval, parseISO, isWithinInterval, isBefore, startOfDay } from 'date-fns';
+import { differenceInDays, format, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InvoicePreview } from '@/components/InvoicePreview';
 
@@ -21,19 +21,6 @@ interface BookingItem {
   siteId: string;
   arrivalDate: string;
   departureDate: string;
-}
-
-function getDisabledDates(siteId: string): { date: Date; status: string }[] {
-  if (!siteId) return [];
-  const booked = getBookedDatesForSite(siteId);
-  const result: { date: Date; status: string }[] = [];
-  booked.forEach(b => {
-    try {
-      const days = eachDayOfInterval({ start: parseISO(b.start), end: parseISO(b.end) });
-      days.forEach(d => result.push({ date: d, status: b.status }));
-    } catch {}
-  });
-  return result;
 }
 
 function DateCalendarPicker({
@@ -49,8 +36,22 @@ function DateCalendarPicker({
   siteId: string;
   minDate?: Date;
 }) {
-  const bookedDates = useMemo(() => getDisabledDates(siteId), [siteId]);
+  const [bookedDates, setBookedDates] = useState<{ date: Date; status: string }[]>([]);
   const today = startOfDay(new Date());
+
+  useEffect(() => {
+    if (!siteId) { setBookedDates([]); return; }
+    getBookedDatesForSite(siteId).then(booked => {
+      const result: { date: Date; status: string }[] = [];
+      booked.forEach(b => {
+        try {
+          const days = eachDayOfInterval({ start: parseISO(b.start), end: parseISO(b.end) });
+          days.forEach(d => result.push({ date: d, status: b.status }));
+        } catch {}
+      });
+      setBookedDates(result);
+    });
+  }, [siteId]);
 
   const disabledMatcher = (date: Date) => {
     if (isBefore(date, minDate || today)) return true;
@@ -78,10 +79,7 @@ function DateCalendarPicker({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className={cn(
-              "w-full mt-1 justify-start text-left font-normal",
-              !value && "text-muted-foreground"
-            )}
+            className={cn("w-full mt-1 justify-start text-left font-normal", !value && "text-muted-foreground")}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {value ? format(parseISO(value), 'dd MMM yyyy') : <span>Pick a date</span>}
@@ -91,9 +89,7 @@ function DateCalendarPicker({
           <Calendar
             mode="single"
             selected={selected}
-            onSelect={(date) => {
-              if (date) onChange(format(date, 'yyyy-MM-dd'));
-            }}
+            onSelect={(date) => { if (date) onChange(format(date, 'yyyy-MM-dd')); }}
             disabled={disabledMatcher}
             modifiers={modifiers}
             modifiersStyles={modifiersStyles}
@@ -125,6 +121,8 @@ export default function BookPage() {
   const [showInvoice, setShowInvoice] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedVoucher, setSubmittedVoucher] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [availabilityMap, setAvailabilityMap] = useState<Record<number, boolean | null>>({});
 
   const resolvedCompany = companyName === '__other__' ? customCompany : companyName;
 
@@ -141,16 +139,31 @@ export default function BookPage() {
   const addItem = () => setItems([...items, { parkId: '', siteId: '', arrivalDate: '', departureDate: '' }]);
   const removeItem = (index: number) => { if (items.length > 1) setItems(items.filter((_, i) => i !== index)); };
 
-  const itemDetails = useMemo(() => items.map(item => {
+  // Check availability async
+  useEffect(() => {
+    items.forEach((item, index) => {
+      if (item.siteId && item.arrivalDate && item.departureDate) {
+        const nights = differenceInDays(new Date(item.departureDate), new Date(item.arrivalDate));
+        if (nights > 0) {
+          isDateRangeAvailable(item.siteId, item.arrivalDate, item.departureDate).then(avail => {
+            setAvailabilityMap(prev => ({ ...prev, [index]: avail }));
+          });
+        }
+      } else {
+        setAvailabilityMap(prev => ({ ...prev, [index]: null }));
+      }
+    });
+  }, [items]);
+
+  const itemDetails = useMemo(() => items.map((item, index) => {
     const park = parks.find(p => p.id === item.parkId);
     const site = park?.sites.find(s => s.id === item.siteId);
     const nights = item.arrivalDate && item.departureDate
       ? Math.max(0, differenceInDays(new Date(item.departureDate), new Date(item.arrivalDate))) : 0;
     const total = nights * RATE_PER_NIGHT;
-    const available = item.siteId && item.arrivalDate && item.departureDate && nights > 0
-      ? isDateRangeAvailable(item.siteId, item.arrivalDate, item.departureDate) : null;
+    const available = availabilityMap[index] ?? null;
     return { park, site, nights, total, available };
-  }), [items]);
+  }), [items, availabilityMap]);
 
   const grandTotal = itemDetails.reduce((s, d) => s + d.total, 0);
   const allValid = resolvedCompany && contactEmail && contactPhone && items.every((item, i) =>
@@ -174,19 +187,26 @@ export default function BookPage() {
     grandTotal,
   };
 
-  const handleSubmit = () => {
-    if (!allValid) return;
-    const bookingItems = items.map((item, i) => ({
-      parkId: item.parkId, parkName: itemDetails[i].park!.name,
-      siteId: item.siteId, siteName: itemDetails[i].site!.name,
-      arrivalDate: item.arrivalDate, departureDate: item.departureDate,
-      nights: itemDetails[i].nights, ratePerNight: RATE_PER_NIGHT, totalAmount: itemDetails[i].total,
-    }));
-    const group = addBookingGroup(resolvedCompany, contactEmail, contactPhone, bookingItems);
-    setSubmittedVoucher(group.voucherNo);
-    setShowInvoice(false);
-    setSubmitted(true);
-    toast.success('Booking submitted successfully!');
+  const handleSubmit = async () => {
+    if (!allValid || submitting) return;
+    setSubmitting(true);
+    try {
+      const bookingItems = items.map((item, i) => ({
+        parkId: item.parkId, parkName: itemDetails[i].park!.name,
+        siteId: item.siteId, siteName: itemDetails[i].site!.name,
+        arrivalDate: item.arrivalDate, departureDate: item.departureDate,
+        nights: itemDetails[i].nights, ratePerNight: RATE_PER_NIGHT, totalAmount: itemDetails[i].total,
+      }));
+      const group = await addBookingGroup(resolvedCompany, contactEmail, contactPhone, bookingItems);
+      setSubmittedVoucher(group.voucherNo);
+      setShowInvoice(false);
+      setSubmitted(true);
+      toast.success('Booking submitted successfully!');
+    } catch (err: any) {
+      toast.error('Failed to submit booking: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -226,7 +246,6 @@ export default function BookPage() {
           <p className="text-muted-foreground">Select your destinations, choose dates, and get an instant quote. <strong>P{RATE_PER_NIGHT}/night</strong> per site.</p>
         </div>
 
-        {/* Company */}
         <Card className="mb-6 border-0 shadow-md">
           <CardContent className="pt-6">
             <h2 className="font-display text-lg font-semibold mb-4">Company Information</h2>
@@ -256,7 +275,6 @@ export default function BookPage() {
           </CardContent>
         </Card>
 
-        {/* Sites */}
         <div className="space-y-4 mb-6">
           <h2 className="font-display text-lg font-semibold">Camping Sites</h2>
           {items.map((item, index) => {
@@ -328,13 +346,12 @@ export default function BookPage() {
           <Plus className="h-4 w-4 mr-2" /> Add Another Site
         </Button>
 
-        {/* Summary */}
         <Card className="border-0 shadow-xl bg-card">
           <CardContent className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Grand Total</p>
               <p className="text-4xl font-display font-extrabold">P{grandTotal.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">{items.length} site{items.length > 1 ? 's' : ''} • {itemDetails.reduce((s, d) => s + d.nights, 0)} night{itemDetails.reduce((s, d) => s + d.nights, 0) > 1 ? 's' : ''}</p>
+              <p className="text-sm text-muted-foreground">{items.length} site{items.length > 1 ? 's' : ''} • {itemDetails.reduce((s, d) => s + d.nights, 0)} nights</p>
             </div>
             <Button size="lg" className="amber-glow text-accent-foreground border-0 px-10 py-6 rounded-xl font-semibold" disabled={!allValid} onClick={() => setShowInvoice(true)}>
               Review Invoice <ArrowRight className="ml-2 h-5 w-5" />

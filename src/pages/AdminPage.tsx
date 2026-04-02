@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { getGroupedBookings, confirmBooking, cancelBooking, getBookings } from '@/store/bookingStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,20 +13,42 @@ import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, Users, Do
 import { format } from 'date-fns';
 import { parks } from '@/data/parks';
 
-const ADMIN_PASS = 'boga2024';
-
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASS) {
-      sessionStorage.setItem('boga_admin', 'true');
-      onLogin();
-    } else {
-      setError(true);
+    setLoading(true);
+    setError('');
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (authError) {
+      setError(authError.message);
+      setLoading(false);
+      return;
     }
+
+    // Check if user has admin role
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', data.user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (!roleData) {
+      await supabase.auth.signOut();
+      setError('You do not have admin access.');
+      setLoading(false);
+      return;
+    }
+
+    onLogin();
+    setLoading(false);
   };
 
   return (
@@ -36,8 +59,18 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
             <Lock className="h-7 w-7 text-accent-foreground" />
           </div>
           <h1 className="font-display text-2xl font-bold text-center mb-1">Admin Access</h1>
-          <p className="text-sm text-muted-foreground text-center mb-6">Enter the admin password to continue</p>
+          <p className="text-sm text-muted-foreground text-center mb-6">Sign in with your admin account</p>
           <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email</Label>
+              <Input
+                type="email"
+                className="mt-1.5"
+                placeholder="admin@boga.org.bw"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(''); }}
+              />
+            </div>
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Password</Label>
               <Input
@@ -45,12 +78,12 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
                 className="mt-1.5"
                 placeholder="Enter password"
                 value={password}
-                onChange={e => { setPassword(e.target.value); setError(false); }}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
               />
-              {error && <p className="text-xs text-destructive mt-1">Incorrect password</p>}
+              {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
-            <Button type="submit" className="w-full amber-glow text-accent-foreground border-0 font-semibold">
-              Sign In
+            <Button type="submit" className="w-full amber-glow text-accent-foreground border-0 font-semibold" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
         </CardContent>
@@ -65,36 +98,62 @@ function AdminDashboard() {
   const [yearFilter, setYearFilter] = useState('all');
   const [parkFilter, setParkFilter] = useState('all');
   const [expandedVoucher, setExpandedVoucher] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [allBookings, setAllBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const allBookings = useMemo(() => getBookings(), [refreshKey]);
-  const groups = useMemo(() => getGroupedBookings(), [refreshKey]);
+  const loadData = async () => {
+    try {
+      const [g, b] = await Promise.all([getGroupedBookings(), getBookings()]);
+      setGroups(g);
+      setAllBookings(b);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   const years = useMemo(() => {
-    const yrs = new Set(allBookings.map(b => new Date(b.arrivalDate).getFullYear()));
+    const yrs = new Set(allBookings.map((b: any) => new Date(b.arrival_date).getFullYear()));
     return Array.from(yrs).sort((a, b) => b - a);
   }, [allBookings]);
 
   const filteredGroups = useMemo(() => {
-    return groups.filter(g => {
+    return groups.filter((g: any) => {
       const matchSearch = !searchTerm || g.companyName.toLowerCase().includes(searchTerm.toLowerCase()) || g.voucherNo.includes(searchTerm);
       const matchStatus = statusFilter === 'all' || g.status === statusFilter;
-      const matchYear = yearFilter === 'all' || g.bookings.some(b => new Date(b.arrivalDate).getFullYear().toString() === yearFilter);
-      const matchPark = parkFilter === 'all' || g.bookings.some(b => b.parkId === parkFilter);
+      const matchYear = yearFilter === 'all' || g.bookings.some((b: any) => new Date(b.arrivalDate).getFullYear().toString() === yearFilter);
+      const matchPark = parkFilter === 'all' || g.bookings.some((b: any) => b.parkId === parkFilter);
       return matchSearch && matchStatus && matchYear && matchPark;
     });
   }, [groups, searchTerm, statusFilter, yearFilter, parkFilter]);
 
   const stats = useMemo(() => ({
     total: allBookings.length,
-    confirmed: allBookings.filter(b => b.status === 'confirmed').length,
-    pending: allBookings.filter(b => b.status === 'pending').length,
-    revenue: allBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.totalAmount, 0),
+    confirmed: allBookings.filter((b: any) => b.status === 'confirmed').length,
+    pending: allBookings.filter((b: any) => b.status === 'pending').length,
+    revenue: allBookings.filter((b: any) => b.status !== 'cancelled').reduce((s: number, b: any) => s + Number(b.total_amount), 0),
   }), [allBookings]);
 
-  const handleConfirm = (voucherNo: string) => { confirmBooking(voucherNo); setRefreshKey(k => k + 1); toast.success(`Booking ${voucherNo} confirmed`); };
-  const handleCancel = (voucherNo: string) => { cancelBooking(voucherNo); setRefreshKey(k => k + 1); toast.info(`Booking ${voucherNo} cancelled`); };
-  const handleLogout = () => { sessionStorage.removeItem('boga_admin'); window.location.reload(); };
+  const handleConfirm = async (voucherNo: string) => {
+    await confirmBooking(voucherNo);
+    await loadData();
+    toast.success(`Booking ${voucherNo} confirmed`);
+  };
+
+  const handleCancel = async (voucherNo: string) => {
+    await cancelBooking(voucherNo);
+    await loadData();
+    toast.info(`Booking ${voucherNo} cancelled`);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -104,6 +163,14 @@ function AdminDashboard() {
     };
     return <Badge className={`${styles[status] || ''} text-xs font-medium`}>{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-24 pb-16 bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
@@ -184,7 +251,7 @@ function AdminDashboard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredGroups.map(group => {
+            {filteredGroups.map((group: any) => {
               const isExpanded = expandedVoucher === group.voucherNo;
               return (
                 <Card key={group.voucherNo} className="border-0 shadow-md overflow-hidden">
@@ -202,7 +269,7 @@ function AdminDashboard() {
                           {statusBadge(group.status)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          #{group.voucherNo} • {format(new Date(group.createdAt), 'dd MMM yyyy')} • {group.bookings.length} site{group.bookings.length > 1 ? 's' : ''}
+                          #{group.voucherNo} • {format(new Date(group.created_at), 'dd MMM yyyy')} • {group.bookings.length} site{group.bookings.length > 1 ? 's' : ''}
                         </p>
                       </div>
                     </div>
@@ -232,7 +299,7 @@ function AdminDashboard() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {group.bookings.map(b => (
+                              {group.bookings.map((b: any) => (
                                 <TableRow key={b.id}>
                                   <TableCell className="font-medium">{b.parkName}</TableCell>
                                   <TableCell>{b.siteName}</TableCell>
@@ -273,7 +340,37 @@ function AdminDashboard() {
 }
 
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('boga_admin') === 'true');
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .eq('role', 'admin')
+          .maybeSingle();
+        setAuthed(!!roleData);
+      }
+      setChecking(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      checkSession();
+    });
+
+    checkSession();
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (checking) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <p className="text-muted-foreground">Checking access...</p>
+    </div>
+  );
 
   if (!authed) return <AdminLogin onLogin={() => setAuthed(true)} />;
   return <AdminDashboard />;
