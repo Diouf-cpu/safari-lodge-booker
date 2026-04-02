@@ -1,16 +1,19 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT, companies } from '@/data/parks';
-import { addBookingGroup, isDateRangeAvailable } from '@/store/bookingStore';
+import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Trash2, CalendarCheck, MapPin, ArrowRight } from 'lucide-react';
-import { differenceInDays, format } from 'date-fns';
+import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight } from 'lucide-react';
+import { differenceInDays, format, eachDayOfInterval, parseISO, isWithinInterval, isBefore, startOfDay } from 'date-fns';
+import { cn } from '@/lib/utils';
 import { InvoicePreview } from '@/components/InvoicePreview';
 
 interface BookingItem {
@@ -18,6 +21,94 @@ interface BookingItem {
   siteId: string;
   arrivalDate: string;
   departureDate: string;
+}
+
+function getDisabledDates(siteId: string): { date: Date; status: string }[] {
+  if (!siteId) return [];
+  const booked = getBookedDatesForSite(siteId);
+  const result: { date: Date; status: string }[] = [];
+  booked.forEach(b => {
+    try {
+      const days = eachDayOfInterval({ start: parseISO(b.start), end: parseISO(b.end) });
+      days.forEach(d => result.push({ date: d, status: b.status }));
+    } catch {}
+  });
+  return result;
+}
+
+function DateCalendarPicker({
+  label,
+  value,
+  onChange,
+  siteId,
+  minDate,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  siteId: string;
+  minDate?: Date;
+}) {
+  const bookedDates = useMemo(() => getDisabledDates(siteId), [siteId]);
+  const today = startOfDay(new Date());
+
+  const disabledMatcher = (date: Date) => {
+    if (isBefore(date, minDate || today)) return true;
+    return bookedDates.some(
+      b => b.status === 'confirmed' && date.getTime() === startOfDay(b.date).getTime()
+    );
+  };
+
+  const modifiers = {
+    booked_confirmed: bookedDates.filter(b => b.status === 'confirmed').map(b => b.date),
+    booked_pending: bookedDates.filter(b => b.status === 'pending').map(b => b.date),
+  };
+
+  const modifiersStyles = {
+    booked_confirmed: { backgroundColor: 'hsl(0 72% 51%)', color: 'white', borderRadius: '6px' },
+    booked_pending: { backgroundColor: 'hsl(38 92% 50%)', color: 'white', borderRadius: '6px' },
+  };
+
+  const selected = value ? parseISO(value) : undefined;
+
+  return (
+    <div>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-full mt-1 justify-start text-left font-normal",
+              !value && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {value ? format(parseISO(value), 'dd MMM yyyy') : <span>Pick a date</span>}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={selected}
+            onSelect={(date) => {
+              if (date) onChange(format(date, 'yyyy-MM-dd'));
+            }}
+            disabled={disabledMatcher}
+            modifiers={modifiers}
+            modifiersStyles={modifiersStyles}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+          <div className="px-3 pb-3 flex items-center gap-3 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-destructive inline-block" /> Confirmed</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-warning inline-block" /> Pending</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-success inline-block" /> Available</span>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 export default function BookPage() {
@@ -41,6 +132,9 @@ export default function BookPage() {
     const updated = [...items];
     updated[index] = { ...updated[index], [field]: value };
     if (field === 'parkId') updated[index].siteId = '';
+    if (field === 'arrivalDate' && updated[index].departureDate && updated[index].departureDate <= value) {
+      updated[index].departureDate = '';
+    }
     setItems(updated);
   };
 
@@ -169,6 +263,7 @@ export default function BookPage() {
             const detail = itemDetails[index];
             const park = parks.find(p => p.id === item.parkId);
             const site = park?.sites.find(s => s.id === item.siteId);
+            const arrivalDate = item.arrivalDate ? new Date(item.arrivalDate) : undefined;
             return (
               <Card key={index} className={`border-0 shadow-md ${detail.available === false ? 'ring-2 ring-destructive' : ''}`}>
                 <CardContent className="pt-5">
@@ -199,14 +294,19 @@ export default function BookPage() {
                       </Select>
                       {site?.coordinates && <p className="text-[10px] text-muted-foreground mt-1">{site.coordinates}</p>}
                     </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Arrival Date</Label>
-                      <Input type="date" className="mt-1" value={item.arrivalDate} onChange={e => updateItem(index, 'arrivalDate', e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Departure Date</Label>
-                      <Input type="date" className="mt-1" value={item.departureDate} onChange={e => updateItem(index, 'departureDate', e.target.value)} />
-                    </div>
+                    <DateCalendarPicker
+                      label="Arrival Date"
+                      value={item.arrivalDate}
+                      onChange={v => updateItem(index, 'arrivalDate', v)}
+                      siteId={item.siteId}
+                    />
+                    <DateCalendarPicker
+                      label="Departure Date"
+                      value={item.departureDate}
+                      onChange={v => updateItem(index, 'departureDate', v)}
+                      siteId={item.siteId}
+                      minDate={arrivalDate ? new Date(arrivalDate.getTime() + 86400000) : undefined}
+                    />
                   </div>
                   {(detail.nights > 0 || detail.available !== null) && (
                     <div className="mt-3 flex items-center justify-between pt-3 border-t">

@@ -19,7 +19,6 @@ export function Navbar() {
     { to: '/', label: 'Home' },
     { to: '/book', label: 'Book Now' },
     { to: '/availability', label: 'Availability' },
-    { to: '/admin', label: 'Admin' },
   ];
 
   const navBg = scrolled || !isHome
