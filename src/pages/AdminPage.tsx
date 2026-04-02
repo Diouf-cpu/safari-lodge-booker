@@ -3,15 +3,63 @@ import { getGroupedBookings, confirmBooking, cancelBooking, getBookings } from '
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Search, CheckCircle, XCircle, FileText, TrendingUp, MapPin, CalendarDays, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import { parks } from '@/data/parks';
 
-export default function AdminPage() {
+const ADMIN_PASS = 'boga2024';
+
+function AdminLogin({ onLogin }: { onLogin: () => void }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === ADMIN_PASS) {
+      sessionStorage.setItem('boga_admin', 'true');
+      onLogin();
+    } else {
+      setError(true);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-sm border-0 shadow-xl">
+        <CardContent className="pt-10 pb-8 px-8">
+          <div className="w-14 h-14 rounded-2xl amber-glow flex items-center justify-center mx-auto mb-6">
+            <Lock className="h-7 w-7 text-accent-foreground" />
+          </div>
+          <h1 className="font-display text-2xl font-bold text-center mb-1">Admin Access</h1>
+          <p className="text-sm text-muted-foreground text-center mb-6">Enter the admin password to continue</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Password</Label>
+              <Input
+                type="password"
+                className="mt-1.5"
+                placeholder="Enter password"
+                value={password}
+                onChange={e => { setPassword(e.target.value); setError(false); }}
+              />
+              {error && <p className="text-xs text-destructive mt-1">Incorrect password</p>}
+            </div>
+            <Button type="submit" className="w-full amber-glow text-accent-foreground border-0 font-semibold">
+              Sign In
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
@@ -42,12 +90,11 @@ export default function AdminPage() {
     confirmed: allBookings.filter(b => b.status === 'confirmed').length,
     pending: allBookings.filter(b => b.status === 'pending').length,
     revenue: allBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.totalAmount, 0),
-    companies: new Set(allBookings.map(b => b.companyName)).size,
-    parksUsed: new Set(allBookings.map(b => b.parkId)).size,
   }), [allBookings]);
 
   const handleConfirm = (voucherNo: string) => { confirmBooking(voucherNo); setRefreshKey(k => k + 1); toast.success(`Booking ${voucherNo} confirmed`); };
   const handleCancel = (voucherNo: string) => { cancelBooking(voucherNo); setRefreshKey(k => k + 1); toast.info(`Booking ${voucherNo} cancelled`); };
+  const handleLogout = () => { sessionStorage.removeItem('boga_admin'); window.location.reload(); };
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -61,13 +108,17 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
       <div className="container mx-auto px-4">
-        <div className="mb-10">
-          <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Administration</p>
-          <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Booking Dashboard</h1>
-          <p className="text-muted-foreground">Manage bookings, confirm payments, and view history across all campsites.</p>
+        <div className="mb-10 flex items-start justify-between">
+          <div>
+            <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Administration</p>
+            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Booking Dashboard</h1>
+            <p className="text-muted-foreground">Manage bookings, confirm payments, and view history.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleLogout} className="mt-2">
+            <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
+          </Button>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { icon: FileText, label: 'Total Bookings', value: stats.total },
@@ -91,7 +142,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Filters */}
         <Card className="mb-8 border-0 shadow-md">
           <CardContent className="pt-5 pb-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="relative">
@@ -124,7 +174,6 @@ export default function AdminPage() {
           </CardContent>
         </Card>
 
-        {/* Bookings */}
         {filteredGroups.length === 0 ? (
           <div className="text-center py-24">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
@@ -221,4 +270,11 @@ export default function AdminPage() {
       </div>
     </div>
   );
+}
+
+export default function AdminPage() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem('boga_admin') === 'true');
+
+  if (!authed) return <AdminLogin onLogin={() => setAuthed(true)} />;
+  return <AdminDashboard />;
 }
