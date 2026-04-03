@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Compass, MapPin, CalendarCheck, Shield, Users, ChevronRight } from 'lucide-react';
+import { ArrowRight, Compass, MapPin, CalendarCheck, Shield, ChevronRight } from 'lucide-react';
 import heroImage from '@/assets/hero-modern.jpg';
 import moremiImg from '@/assets/moremi.jpg';
 import chobeImg from '@/assets/chobe.jpg';
@@ -8,14 +8,14 @@ import kalahariImg from '@/assets/kalahari.jpg';
 import { parks } from '@/data/parks';
 
 const parkImages: Record<string, string> = { moremi: moremiImg, chobe: chobeImg, kalahari: kalahariImg };
-const featuredParks = parks.slice(0, 4);
+const featuredParks = parks.slice(0, 6);
 
 export default function Index() {
   return (
     <div className="min-h-screen">
-      {/* Hero */}
+      {/* Hero with Ken Burns */}
       <section className="relative h-screen flex items-end overflow-hidden">
-        <img src={heroImage} alt="Safari camp at sunset in Botswana" className="absolute inset-0 w-full h-full object-cover" width={1920} height={1080} />
+        <img src={heroImage} alt="Safari camp at sunset in Botswana" className="absolute inset-0 w-full h-full object-cover animate-ken-burns" width={1920} height={1080} />
         <div className="absolute inset-0 hero-gradient" />
         <div className="relative z-10 container mx-auto px-4 pb-24">
           <div className="max-w-2xl">
@@ -48,10 +48,10 @@ export default function Index() {
           {[
             { value: '1,000+', label: 'Tour Guides' },
             { value: '400+', label: 'Safari Companies' },
-            { value: '82+', label: 'Active Members' },
-            { value: '9', label: 'Wilderness Areas' },
-          ].map(({ value, label }) => (
-            <div key={label} className="text-center">
+            { value: `${parks.reduce((s, p) => s + p.sites.length, 0)}+`, label: 'Camping Sites' },
+            { value: `${parks.length}`, label: 'Wilderness Areas' },
+          ].map(({ value, label }, i) => (
+            <div key={label} className="text-center animate-fade-up" style={{ animationDelay: `${i * 0.1}s` }}>
               <p className="font-display text-2xl md:text-3xl font-bold text-secondary">{value}</p>
               <p className="text-xs text-primary-foreground/60 uppercase tracking-wider">{label}</p>
             </div>
@@ -86,12 +86,12 @@ export default function Index() {
             {[
               { step: '01', icon: MapPin, title: 'Choose Your Sites', desc: 'Browse parks and campsites across Moremi, Chobe, Savuti, CKGR, Khwai and more. See coordinates and details for every site.' },
               { step: '02', icon: CalendarCheck, title: 'Check & Book Dates', desc: 'View real-time availability, select your dates, and add multiple sites to a single booking. Prices calculate automatically.' },
-              { step: '03', icon: Shield, title: 'Get Your Invoice', desc: 'Review your invoice, share it via WhatsApp or email, and submit. BOGA admin confirms and secures your reservation.' },
-            ].map(({ step, icon: Icon, title, desc }) => (
-              <div key={step} className="relative">
+              { step: '03', icon: Shield, title: 'Get Your Invoice', desc: 'Review your invoice, download the PDF, share via WhatsApp or email, and submit. BOGA admin confirms your reservation.' },
+            ].map(({ step, icon: Icon, title, desc }, i) => (
+              <div key={step} className="relative animate-fade-up" style={{ animationDelay: `${i * 0.15}s` }}>
                 <span className="font-display text-6xl font-extrabold text-muted/80 absolute -top-4 -left-2">{step}</span>
                 <div className="relative pt-10">
-                  <div className="w-12 h-12 rounded-xl amber-glow flex items-center justify-center mb-5">
+                  <div className="w-12 h-12 rounded-xl amber-glow flex items-center justify-center mb-5 animate-float" style={{ animationDelay: `${i * 0.5}s` }}>
                     <Icon className="h-6 w-6 text-accent-foreground" />
                   </div>
                   <h3 className="font-display text-xl font-semibold mb-3">{title}</h3>
@@ -103,7 +103,7 @@ export default function Index() {
         </div>
       </section>
 
-      {/* Featured Destinations */}
+      {/* Destinations - now shows 6 */}
       <section className="py-24 bg-background">
         <div className="container mx-auto px-4">
           <div className="flex items-end justify-between mb-12">
@@ -115,21 +115,21 @@ export default function Index() {
               View all destinations <ChevronRight className="h-4 w-4 ml-1" />
             </Link>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredParks.map(park => {
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredParks.map((park, i) => {
               const img = parkImages[park.image || ''] || moremiImg;
               return (
-                <Link to={`/book?park=${park.id}`} key={park.id} className="group card-hover rounded-2xl overflow-hidden bg-card border">
-                  <div className="aspect-[4/3] overflow-hidden">
-                    <img src={img} alt={park.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                <Link to={`/book?park=${park.id}`} key={park.id} className="group card-hover rounded-2xl overflow-hidden bg-card border animate-fade-up" style={{ animationDelay: `${i * 0.08}s` }}>
+                  <div className="aspect-[16/10] overflow-hidden">
+                    <img src={img} alt={park.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
                   </div>
                   <div className="p-5">
                     <h3 className="font-display text-lg font-semibold mb-1 group-hover:text-secondary transition-colors">{park.name}</h3>
                     <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{park.description}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">{park.sites.length} sites</span>
-                      <span className="text-xs font-medium text-secondary flex items-center">
-                        Book now <ArrowRight className="h-3 w-3 ml-1" />
+                      <span className="text-xs font-medium text-secondary flex items-center group-hover:gap-2 transition-all">
+                        Book now <ArrowRight className="h-3 w-3 ml-1 group-hover:translate-x-1 transition-transform" />
                       </span>
                     </div>
                   </div>
@@ -143,7 +143,7 @@ export default function Index() {
       {/* CTA */}
       <section className="py-24 dark-surface">
         <div className="container mx-auto px-4 text-center">
-          <Compass className="h-10 w-10 text-secondary mx-auto mb-6" />
+          <Compass className="h-10 w-10 text-secondary mx-auto mb-6 animate-float" />
           <h2 className="font-display text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
             Ready to Experience Botswana?
           </h2>
