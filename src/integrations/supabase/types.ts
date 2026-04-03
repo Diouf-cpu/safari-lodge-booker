@@ -66,6 +66,7 @@ export type Database = {
           rate_per_night: number
           site_id: string
           site_name: string
+          site_voucher_no: string | null
           status: Database["public"]["Enums"]["booking_status"]
           total_amount: number
           voucher_no: string
@@ -85,6 +86,7 @@ export type Database = {
           rate_per_night: number
           site_id: string
           site_name: string
+          site_voucher_no?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           total_amount: number
           voucher_no: string
@@ -104,6 +106,7 @@ export type Database = {
           rate_per_night?: number
           site_id?: string
           site_name?: string
+          site_voucher_no?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           total_amount?: number
           voucher_no?: string
@@ -117,6 +120,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      companies: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
