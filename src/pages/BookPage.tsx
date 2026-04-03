@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { parks, RATE_PER_NIGHT, companies } from '@/data/parks';
-import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
+import { parks, RATE_PER_NIGHT } from '@/data/parks';
+import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompanies } from '@/store/bookingStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,17 +24,9 @@ interface BookingItem {
 }
 
 function DateCalendarPicker({
-  label,
-  value,
-  onChange,
-  siteId,
-  minDate,
+  label, value, onChange, siteId, minDate,
 }: {
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  siteId: string;
-  minDate?: Date;
+  label: string; value: string; onChange: (val: string) => void; siteId: string; minDate?: Date;
 }) {
   const [bookedDates, setBookedDates] = useState<{ date: Date; status: string }[]>([]);
   const today = startOfDay(new Date());
@@ -55,16 +47,13 @@ function DateCalendarPicker({
 
   const disabledMatcher = (date: Date) => {
     if (isBefore(date, minDate || today)) return true;
-    return bookedDates.some(
-      b => b.status === 'confirmed' && date.getTime() === startOfDay(b.date).getTime()
-    );
+    return bookedDates.some(b => b.status === 'confirmed' && date.getTime() === startOfDay(b.date).getTime());
   };
 
   const modifiers = {
     booked_confirmed: bookedDates.filter(b => b.status === 'confirmed').map(b => b.date),
     booked_pending: bookedDates.filter(b => b.status === 'pending').map(b => b.date),
   };
-
   const modifiersStyles = {
     booked_confirmed: { backgroundColor: 'hsl(0 72% 51%)', color: 'white', borderRadius: '6px' },
     booked_pending: { backgroundColor: 'hsl(38 92% 50%)', color: 'white', borderRadius: '6px' },
@@ -77,24 +66,17 @@ function DateCalendarPicker({
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <Popover>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn("w-full mt-1 justify-start text-left font-normal", !value && "text-muted-foreground")}
-          >
+          <Button variant="outline" className={cn("w-full mt-1 justify-start text-left font-normal", !value && "text-muted-foreground")}>
             <CalendarIcon className="mr-2 h-4 w-4" />
             {value ? format(parseISO(value), 'dd MMM yyyy') : <span>Pick a date</span>}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            mode="single"
-            selected={selected}
+            mode="single" selected={selected}
             onSelect={(date) => { if (date) onChange(format(date, 'yyyy-MM-dd')); }}
-            disabled={disabledMatcher}
-            modifiers={modifiers}
-            modifiersStyles={modifiersStyles}
-            initialFocus
-            className={cn("p-3 pointer-events-auto")}
+            disabled={disabledMatcher} modifiers={modifiers} modifiersStyles={modifiersStyles}
+            initialFocus className={cn("p-3 pointer-events-auto")}
           />
           <div className="px-3 pb-3 flex items-center gap-3 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-destructive inline-block" /> Confirmed</span>
@@ -111,6 +93,7 @@ export default function BookPage() {
   const [searchParams] = useSearchParams();
   const preselectedPark = searchParams.get('park') || '';
 
+  const [companies, setCompanies] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [customCompany, setCustomCompany] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -123,6 +106,10 @@ export default function BookPage() {
   const [submittedVoucher, setSubmittedVoucher] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [availabilityMap, setAvailabilityMap] = useState<Record<number, boolean | null>>({});
+
+  useEffect(() => {
+    getCompanies().then(setCompanies);
+  }, []);
 
   const resolvedCompany = companyName === '__other__' ? customCompany : companyName;
 
@@ -139,7 +126,6 @@ export default function BookPage() {
   const addItem = () => setItems([...items, { parkId: '', siteId: '', arrivalDate: '', departureDate: '' }]);
   const removeItem = (index: number) => { if (items.length > 1) setItems(items.filter((_, i) => i !== index)); };
 
-  // Check availability async
   useEffect(() => {
     items.forEach((item, index) => {
       if (item.siteId && item.arrivalDate && item.departureDate) {
@@ -256,11 +242,11 @@ export default function BookPage() {
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select company" /></SelectTrigger>
                   <SelectContent>
                     {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    <SelectItem value="__other__">Other company...</SelectItem>
+                    <SelectItem value="__other__">✚ Other company...</SelectItem>
                   </SelectContent>
                 </Select>
                 {companyName === '__other__' && (
-                  <Input className="mt-2" placeholder="Enter company name" value={customCompany} onChange={e => setCustomCompany(e.target.value)} />
+                  <Input className="mt-2" placeholder="Enter new company name" value={customCompany} onChange={e => setCustomCompany(e.target.value)} />
                 )}
               </div>
               <div>
@@ -312,19 +298,9 @@ export default function BookPage() {
                       </Select>
                       {site?.coordinates && <p className="text-[10px] text-muted-foreground mt-1">{site.coordinates}</p>}
                     </div>
-                    <DateCalendarPicker
-                      label="Arrival Date"
-                      value={item.arrivalDate}
-                      onChange={v => updateItem(index, 'arrivalDate', v)}
-                      siteId={item.siteId}
-                    />
-                    <DateCalendarPicker
-                      label="Departure Date"
-                      value={item.departureDate}
-                      onChange={v => updateItem(index, 'departureDate', v)}
-                      siteId={item.siteId}
-                      minDate={arrivalDate ? new Date(arrivalDate.getTime() + 86400000) : undefined}
-                    />
+                    <DateCalendarPicker label="Arrival Date" value={item.arrivalDate} onChange={v => updateItem(index, 'arrivalDate', v)} siteId={item.siteId} />
+                    <DateCalendarPicker label="Departure Date" value={item.departureDate} onChange={v => updateItem(index, 'departureDate', v)} siteId={item.siteId}
+                      minDate={arrivalDate ? new Date(arrivalDate.getTime() + 86400000) : undefined} />
                   </div>
                   {(detail.nights > 0 || detail.available !== null) && (
                     <div className="mt-3 flex items-center justify-between pt-3 border-t">
