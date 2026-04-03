@@ -5,6 +5,20 @@ function generateVoucherNo(): string {
   return num.toString();
 }
 
+function generateSiteVoucherNo(): string {
+  const num = 50000 + Math.floor(Math.random() * 50000);
+  return 'S' + num.toString();
+}
+
+export async function getCompanies(): Promise<string[]> {
+  const { data } = await supabase.from('companies').select('name').order('name');
+  return (data || []).map(c => c.name);
+}
+
+export async function addCompany(name: string): Promise<void> {
+  await supabase.from('companies').upsert({ name }, { onConflict: 'name' });
+}
+
 export async function getBookings() {
   const { data, error } = await supabase
     .from('bookings')
@@ -32,6 +46,9 @@ export async function addBookingGroup(
   const voucherNo = generateVoucherNo();
   const grandTotal = items.reduce((s, i) => s + i.totalAmount, 0);
 
+  // Save company if new
+  await addCompany(companyName);
+
   const { data: group, error: groupError } = await supabase
     .from('booking_groups')
     .insert({
@@ -50,6 +67,7 @@ export async function addBookingGroup(
   const bookingRows = items.map(item => ({
     group_id: group.id,
     voucher_no: voucherNo,
+    site_voucher_no: generateSiteVoucherNo(),
     company_name: companyName,
     contact_email: contactEmail,
     contact_phone: contactPhone,
@@ -159,6 +177,7 @@ export async function getGroupedBookings() {
       .map(b => ({
         ...b,
         voucherNo: b.voucher_no,
+        siteVoucherNo: b.site_voucher_no,
         companyName: b.company_name,
         contactEmail: b.contact_email,
         contactPhone: b.contact_phone,
@@ -172,4 +191,27 @@ export async function getGroupedBookings() {
         totalAmount: Number(b.total_amount),
       })),
   }));
+}
+
+export async function getSiteBookingStats() {
+  const { data } = await supabase
+    .from('bookings')
+    .select('park_id, park_name, site_id, site_name, status')
+    .neq('status', 'cancelled');
+
+  if (!data) return [];
+
+  const siteMap: Record<string, { parkName: string; siteName: string; siteId: string; parkId: string; total: number; confirmed: number; pending: number }> = {};
+
+  data.forEach(b => {
+    const key = b.site_id;
+    if (!siteMap[key]) {
+      siteMap[key] = { parkName: b.park_name, siteName: b.site_name, siteId: b.site_id, parkId: b.park_id, total: 0, confirmed: 0, pending: 0 };
+    }
+    siteMap[key].total++;
+    if (b.status === 'confirmed') siteMap[key].confirmed++;
+    if (b.status === 'pending') siteMap[key].pending++;
+  });
+
+  return Object.values(siteMap).sort((a, b) => b.total - a.total);
 }

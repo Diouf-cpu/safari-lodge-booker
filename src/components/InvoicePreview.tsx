@@ -1,8 +1,19 @@
-import { BookingGroup } from '@/data/types';
 import { RATE_PER_NIGHT } from '@/data/parks';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Mail, Printer, X } from 'lucide-react';
+import { MessageCircle, Mail, Printer, X, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+interface InvoiceItem {
+  parkName: string;
+  siteName: string;
+  arrivalDate: string;
+  departureDate: string;
+  nights: number;
+  totalAmount: number;
+  siteVoucherNo?: string;
+}
 
 interface InvoicePreviewProps {
   group: {
@@ -10,15 +21,97 @@ interface InvoicePreviewProps {
     companyName: string;
     contactEmail: string;
     contactPhone: string;
-    items: { parkName: string; siteName: string; arrivalDate: string; departureDate: string; nights: number; totalAmount: number }[];
+    items: InvoiceItem[];
     grandTotal: number;
   };
   onClose: () => void;
   onConfirm: () => void;
 }
 
+function generatePDF(group: InvoicePreviewProps['group']) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.text('BOGA', 20, 25);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Botswana Guides Association', 20, 32);
+  doc.text('Maun, Botswana', 20, 37);
+
+  doc.setFontSize(10);
+  doc.text('INVOICE', pageWidth - 20, 20, { align: 'right' });
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`#${group.voucherNo}`, pageWidth - 20, 28, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(format(new Date(), 'dd MMM yyyy'), pageWidth - 20, 34, { align: 'right' });
+
+  // Separator
+  doc.setDrawColor(200);
+  doc.line(20, 44, pageWidth - 20, 44);
+
+  // Bill To
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  doc.text('BILLED TO', 20, 54);
+  doc.setTextColor(0);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(group.companyName, 20, 61);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(group.contactEmail, 20, 67);
+  doc.text(group.contactPhone, 20, 73);
+
+  // Table
+  const tableData = group.items.map(item => [
+    `${item.parkName}\n${item.siteName}`,
+    item.siteVoucherNo || '-',
+    `${format(new Date(item.arrivalDate), 'dd MMM')} - ${format(new Date(item.departureDate), 'dd MMM yyyy')}`,
+    item.nights.toString(),
+    `P${item.totalAmount.toLocaleString()}`,
+  ]);
+
+  autoTable(doc, {
+    startY: 82,
+    head: [['Park / Site', 'Site Voucher', 'Dates', 'Nights', 'Amount']],
+    body: tableData,
+    theme: 'plain',
+    headStyles: { fillColor: [245, 240, 230], textColor: [80, 70, 60], fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9 },
+    columnStyles: {
+      0: { cellWidth: 50 },
+      1: { cellWidth: 30 },
+      4: { halign: 'right', fontStyle: 'bold' },
+    },
+    margin: { left: 20, right: 20 },
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+  // Totals
+  doc.setFontSize(9);
+  doc.text(`Rate per night: P${RATE_PER_NIGHT}`, pageWidth - 20, finalY, { align: 'right' });
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Total Due: P${group.grandTotal.toLocaleString()}`, pageWidth - 20, finalY + 10, { align: 'right' });
+
+  // Footer
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(120);
+  doc.text('This booking is subject to confirmation by BOGA administration.', pageWidth / 2, finalY + 25, { align: 'center' });
+  doc.text('Payment must be made to confirm your reservation.', pageWidth / 2, finalY + 30, { align: 'center' });
+
+  doc.save(`BOGA-Invoice-${group.voucherNo}.pdf`);
+}
+
 export function InvoicePreview({ group, onClose, onConfirm }: InvoicePreviewProps) {
-  const invoiceText = `BOGA Campsite Booking Invoice\n\nVoucher: ${group.voucherNo}\nCompany: ${group.companyName}\nEmail: ${group.contactEmail}\nPhone: ${group.contactPhone}\n\nBookings:\n${group.items.map(b => `• ${b.parkName} - ${b.siteName}: ${b.arrivalDate} to ${b.departureDate} (${b.nights} nights) = P${b.totalAmount.toLocaleString()}`).join('\n')}\n\nTotal: P${group.grandTotal.toLocaleString()}\nRate: P${RATE_PER_NIGHT}/night`;
+  const invoiceText = `BOGA Campsite Booking Invoice\n\nVoucher: ${group.voucherNo}\nCompany: ${group.companyName}\nEmail: ${group.contactEmail}\nPhone: ${group.contactPhone}\n\nBookings:\n${group.items.map(b => `• ${b.parkName} - ${b.siteName}${b.siteVoucherNo ? ` (${b.siteVoucherNo})` : ''}: ${b.arrivalDate} to ${b.departureDate} (${b.nights} nights) = P${b.totalAmount.toLocaleString()}`).join('\n')}\n\nTotal: P${group.grandTotal.toLocaleString()}\nRate: P${RATE_PER_NIGHT}/night`;
 
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(invoiceText)}`;
   const emailUrl = `mailto:${group.contactEmail}?subject=BOGA Booking Invoice - ${group.voucherNo}&body=${encodeURIComponent(invoiceText)}`;
@@ -59,6 +152,7 @@ export function InvoicePreview({ group, onClose, onConfirm }: InvoicePreviewProp
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 font-medium text-muted-foreground">Park / Site</th>
+                <th className="text-left py-3 font-medium text-muted-foreground">Site Voucher</th>
                 <th className="text-left py-3 font-medium text-muted-foreground">Dates</th>
                 <th className="text-center py-3 font-medium text-muted-foreground">Nights</th>
                 <th className="text-right py-3 font-medium text-muted-foreground">Amount</th>
@@ -71,6 +165,7 @@ export function InvoicePreview({ group, onClose, onConfirm }: InvoicePreviewProp
                     <p className="font-medium">{item.parkName}</p>
                     <p className="text-muted-foreground text-xs">{item.siteName}</p>
                   </td>
+                  <td className="py-3 font-mono text-xs text-muted-foreground">{item.siteVoucherNo || '—'}</td>
                   <td className="py-3 text-muted-foreground">
                     {format(new Date(item.arrivalDate), 'dd MMM')} — {format(new Date(item.departureDate), 'dd MMM yyyy')}
                   </td>
@@ -100,18 +195,21 @@ export function InvoicePreview({ group, onClose, onConfirm }: InvoicePreviewProp
           </p>
 
           {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button asChild className="flex-1 bg-whatsapp hover:bg-whatsapp/90 text-whatsapp-foreground">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Button onClick={() => generatePDF(group)} className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">
+              <Download className="h-4 w-4 mr-2" /> Download
+            </Button>
+            <Button asChild className="bg-whatsapp hover:bg-whatsapp/90 text-whatsapp-foreground">
               <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="h-4 w-4 mr-2" /> Send via WhatsApp
+                <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
               </a>
             </Button>
-            <Button asChild variant="outline" className="flex-1">
+            <Button asChild variant="outline">
               <a href={emailUrl}>
-                <Mail className="h-4 w-4 mr-2" /> Send via Email
+                <Mail className="h-4 w-4 mr-2" /> Email
               </a>
             </Button>
-            <Button variant="outline" onClick={() => window.print()} className="flex-1">
+            <Button variant="outline" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" /> Print
             </Button>
           </div>
