@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getGroupedBookings, confirmBooking, cancelBooking, getBookings, getSiteBookingStats } from '@/store/bookingStore';
+import { getGroupedBookings, confirmBooking, cancelBooking, getBookings, getSiteBookingStats, getCompanies, addCompany, deleteCompany, expireOldBookings, getDailySummary } from '@/store/bookingStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3 } from 'lucide-react';
+import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { parks } from '@/data/parks';
+import { InvoicePreview } from '@/components/InvoicePreview';
+import bogaLogo from '@/assets/boga-logo.png';
 
-function AdminLogin({ onLogin }: { onLogin: () => void }) {
+function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,9 +28,19 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     setError('');
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
-    const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', data.user.id).eq('role', 'admin').maybeSingle();
-    if (!roleData) { await supabase.auth.signOut(); setError('You do not have admin access.'); setLoading(false); return; }
-    onLogin();
+
+    // Check for admin or accountant role
+    const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', data.user.id);
+    const roleList = (roles || []).map(r => r.role);
+
+    if (roleList.includes('admin')) {
+      onLogin('admin');
+    } else if (roleList.includes('accountant')) {
+      onLogin('accountant');
+    } else {
+      await supabase.auth.signOut();
+      setError('You do not have admin or accountant access.');
+    }
     setLoading(false);
   };
 
@@ -36,15 +48,13 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm border-0 shadow-xl">
         <CardContent className="pt-10 pb-8 px-8">
-          <div className="w-14 h-14 rounded-2xl amber-glow flex items-center justify-center mx-auto mb-6">
-            <Lock className="h-7 w-7 text-accent-foreground" />
-          </div>
-          <h1 className="font-display text-2xl font-bold text-center mb-1">Admin Access</h1>
-          <p className="text-sm text-muted-foreground text-center mb-6">Sign in with your admin account</p>
+          <img src={bogaLogo} alt="BOGA" className="h-16 w-16 object-contain mx-auto mb-4" />
+          <h1 className="font-display text-2xl font-bold text-center mb-1">Staff Access</h1>
+          <p className="text-sm text-muted-foreground text-center mb-6">Sign in with your staff account</p>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email</Label>
-              <Input type="email" className="mt-1.5" placeholder="admin@boga.org.bw" value={email} onChange={e => { setEmail(e.target.value); setError(''); }} />
+              <Input type="email" className="mt-1.5" placeholder="staff@boga.org.bw" value={email} onChange={e => { setEmail(e.target.value); setError(''); }} />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Password</Label>
@@ -57,6 +67,153 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
           </form>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function AccountantDashboard() {
+  const [summaryDate, setSummaryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [summary, setSummary] = useState<{ groups: any[]; totalRevenue: number }>({ groups: [], totalRevenue: 0 });
+  const [allConfirmed, setAllConfirmed] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const [s, bookings] = await Promise.all([
+        getDailySummary(summaryDate),
+        getBookings(),
+      ]);
+      setSummary(s);
+      setAllConfirmed(bookings.filter((b: any) => b.status === 'confirmed'));
+      setLoading(false);
+    };
+    load();
+  }, [summaryDate]);
+
+  const totalConfirmedRevenue = allConfirmed.reduce((s, b) => s + Number(b.total_amount), 0);
+
+  const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
+
+  if (loading) return <div className="min-h-screen pt-24 pb-16 bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
+
+  return (
+    <div className="min-h-screen pt-24 pb-16 bg-background">
+      <div className="container mx-auto px-4">
+        <div className="mb-10 flex items-start justify-between">
+          <div>
+            <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Accountant</p>
+            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Finance Dashboard</h1>
+            <p className="text-muted-foreground">View confirmed payments and daily summaries.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleLogout} className="mt-2"><LogOut className="h-4 w-4 mr-1.5" /> Sign Out</Button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          <Card className="border-0 shadow-md">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><DollarSign className="h-5 w-5 text-secondary" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Confirmed Revenue</p>
+                  <p className="text-xl font-display font-bold">P{totalConfirmedRevenue.toLocaleString()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-md">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><CheckCircle className="h-5 w-5 text-secondary" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Confirmed Bookings</p>
+                  <p className="text-xl font-display font-bold">{allConfirmed.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-md">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><Receipt className="h-5 w-5 text-secondary" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Daily Summary ({format(new Date(summaryDate), 'dd MMM')})</p>
+                  <p className="text-xl font-display font-bold">P{summary.totalRevenue.toLocaleString()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-0 shadow-md mb-6">
+          <CardContent className="pt-5 pb-4 flex items-center gap-4">
+            <Label className="text-sm font-medium whitespace-nowrap">Daily Summary Date:</Label>
+            <Input type="date" value={summaryDate} onChange={e => setSummaryDate(e.target.value)} className="max-w-xs" />
+          </CardContent>
+        </Card>
+
+        {summary.groups.length > 0 ? (
+          <div className="rounded-xl border overflow-hidden bg-card shadow-md mb-8">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="text-xs uppercase font-semibold">Voucher</TableHead>
+                  <TableHead className="text-xs uppercase font-semibold">Company</TableHead>
+                  <TableHead className="text-xs uppercase font-semibold">Confirmed At</TableHead>
+                  <TableHead className="text-xs uppercase font-semibold text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {summary.groups.map((g: any) => (
+                  <TableRow key={g.voucherNo}>
+                    <TableCell className="font-mono text-sm">#{g.voucherNo}</TableCell>
+                    <TableCell className="font-semibold">{g.companyName}</TableCell>
+                    <TableCell className="text-muted-foreground">{format(new Date(g.confirmedAt), 'dd MMM yyyy HH:mm')}</TableCell>
+                    <TableCell className="text-right font-bold">P{g.grandTotal.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/30">
+                  <TableCell colSpan={3} className="font-display font-bold">Daily Total</TableCell>
+                  <TableCell className="text-right font-display font-bold text-lg">P{summary.totalRevenue.toLocaleString()}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="text-center py-16 text-muted-foreground">No confirmed payments for {format(new Date(summaryDate), 'dd MMM yyyy')}.</div>
+        )}
+
+        <h2 className="font-display text-xl font-bold mb-4">All Confirmed Bookings</h2>
+        <div className="rounded-xl border overflow-hidden bg-card shadow-md">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs uppercase">Voucher</TableHead>
+                <TableHead className="text-xs uppercase">Company</TableHead>
+                <TableHead className="text-xs uppercase">Park</TableHead>
+                <TableHead className="text-xs uppercase">Site</TableHead>
+                <TableHead className="text-xs uppercase">Dates</TableHead>
+                <TableHead className="text-xs uppercase text-center">Nights</TableHead>
+                <TableHead className="text-xs uppercase text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {allConfirmed.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No confirmed bookings yet</TableCell></TableRow>
+              ) : allConfirmed.map((b: any) => (
+                <TableRow key={b.id}>
+                  <TableCell className="font-mono text-xs">{b.voucher_no}</TableCell>
+                  <TableCell className="font-semibold">{b.company_name}</TableCell>
+                  <TableCell>{b.park_name}</TableCell>
+                  <TableCell>{b.site_name}</TableCell>
+                  <TableCell className="text-muted-foreground">{format(new Date(b.arrival_date), 'dd MMM')} — {format(new Date(b.departure_date), 'dd MMM yyyy')}</TableCell>
+                  <TableCell className="text-center">{b.nights}</TableCell>
+                  <TableCell className="text-right font-medium">P{Number(b.total_amount).toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -75,13 +232,20 @@ function AdminDashboard() {
   const [companySearch, setCompanySearch] = useState('');
   const [siteSearch, setSiteSearch] = useState('');
   const [voucherSearch, setVoucherSearch] = useState('');
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [previewGroup, setPreviewGroup] = useState<any>(null);
+  const [previewMode, setPreviewMode] = useState<'receipt' | 'voucher'>('receipt');
 
   const loadData = async () => {
     try {
-      const [g, b, ss] = await Promise.all([getGroupedBookings(), getBookings(), getSiteBookingStats()]);
+      const [g, b, ss, c] = await Promise.all([getGroupedBookings(), getBookings(), getSiteBookingStats(), getCompanies()]);
       setGroups(g);
       setAllBookings(b);
       setSiteStats(ss);
+      setCompanies(c);
+      // Auto-expire old pending bookings
+      await expireOldBookings();
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
@@ -113,7 +277,6 @@ function AdminDashboard() {
     uniqueCompanies: new Set(allBookings.map((b: any) => b.company_name)).size,
   }), [allBookings]);
 
-  // Company analytics
   const companyAnalytics = useMemo(() => {
     const map: Record<string, { name: string; bookings: number; sites: Set<string>; revenue: number; pending: number; confirmed: number }> = {};
     allBookings.forEach((b: any) => {
@@ -130,7 +293,6 @@ function AdminDashboard() {
       .sort((a, b) => b.bookings - a.bookings);
   }, [allBookings, companySearch]);
 
-  // Site analytics
   const siteAnalytics = useMemo(() => {
     const map: Record<string, { siteId: string; siteName: string; parkName: string; companies: Set<string>; bookings: number; revenue: number }> = {};
     allBookings.filter((b: any) => b.status !== 'cancelled').forEach((b: any) => {
@@ -145,7 +307,6 @@ function AdminDashboard() {
       .sort((a, b) => b.bookings - a.bookings);
   }, [allBookings, siteSearch]);
 
-  // Voucher lookup
   const voucherResults = useMemo(() => {
     if (!voucherSearch) return [];
     return groups.filter((g: any) =>
@@ -154,16 +315,62 @@ function AdminDashboard() {
     );
   }, [groups, voucherSearch]);
 
-  // Company detail bookings
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const companyBookings = useMemo(() => {
     if (!selectedCompany) return [];
     return allBookings.filter((b: any) => b.company_name === selectedCompany);
   }, [allBookings, selectedCompany]);
 
-  const handleConfirm = async (voucherNo: string) => { await confirmBooking(voucherNo); await loadData(); toast.success(`Booking ${voucherNo} confirmed`); };
-  const handleCancel = async (voucherNo: string) => { await cancelBooking(voucherNo); await loadData(); toast.info(`Booking ${voucherNo} cancelled`); };
+  const handleConfirm = async (voucherNo: string) => {
+    await confirmBooking(voucherNo);
+    await loadData();
+    toast.success(`Booking ${voucherNo} confirmed`);
+  };
+
+  const handleCancel = async (voucherNo: string) => {
+    await cancelBooking(voucherNo);
+    await loadData();
+    toast.info(`Booking ${voucherNo} cancelled`);
+  };
+
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
+
+  const handleAddCompany = async () => {
+    if (!newCompanyName.trim()) return;
+    await addCompany(newCompanyName.trim());
+    setNewCompanyName('');
+    const updated = await getCompanies();
+    setCompanies(updated);
+    toast.success('Company added');
+  };
+
+  const handleDeleteCompany = async (name: string) => {
+    await deleteCompany(name);
+    const updated = await getCompanies();
+    setCompanies(updated);
+    toast.success('Company removed');
+  };
+
+  const openDocPreview = (group: any, mode: 'receipt' | 'voucher') => {
+    setPreviewGroup({
+      voucherNo: group.voucherNo,
+      companyName: group.companyName,
+      contactEmail: group.contactEmail,
+      contactPhone: group.contactPhone,
+      status: group.status,
+      items: group.bookings.map((b: any) => ({
+        parkName: b.parkName,
+        siteName: b.siteName,
+        arrivalDate: b.arrivalDate,
+        departureDate: b.departureDate,
+        nights: b.nights,
+        totalAmount: b.totalAmount,
+        siteVoucherNo: b.siteVoucherNo,
+      })),
+      grandTotal: group.grandTotal,
+    });
+    setPreviewMode(mode);
+  };
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -185,7 +392,7 @@ function AdminDashboard() {
           <div>
             <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Administration</p>
             <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Booking Dashboard</h1>
-            <p className="text-muted-foreground">Manage bookings, analytics, and history.</p>
+            <p className="text-muted-foreground">Manage bookings, companies, analytics, and history.</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleLogout} className="mt-2"><LogOut className="h-4 w-4 mr-1.5" /> Sign Out</Button>
         </div>
@@ -235,9 +442,10 @@ function AdminDashboard() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
             <TabsTrigger value="companies">Companies</TabsTrigger>
+            <TabsTrigger value="manage-companies">Manage List</TabsTrigger>
             <TabsTrigger value="sites">Sites</TabsTrigger>
             <TabsTrigger value="vouchers">Voucher Lookup</TabsTrigger>
           </TabsList>
@@ -316,7 +524,7 @@ function AdminDashboard() {
                                   <TableRow className="bg-muted/50">
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider">Park</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider">Site</TableHead>
-                                    <TableHead className="font-semibold text-xs uppercase tracking-wider">Site Voucher</TableHead>
+                                    {group.status === 'confirmed' && <TableHead className="font-semibold text-xs uppercase tracking-wider">Site Voucher</TableHead>}
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider">Arrival</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider">Departure</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Nights</TableHead>
@@ -328,7 +536,7 @@ function AdminDashboard() {
                                     <TableRow key={b.id}>
                                       <TableCell className="font-medium">{b.parkName}</TableCell>
                                       <TableCell>{b.siteName}</TableCell>
-                                      <TableCell className="font-mono text-xs text-muted-foreground">{b.siteVoucherNo || '—'}</TableCell>
+                                      {group.status === 'confirmed' && <TableCell className="font-mono text-xs text-muted-foreground">{b.siteVoucherNo || '—'}</TableCell>}
                                       <TableCell>{format(new Date(b.arrivalDate), 'dd MMM yyyy')}</TableCell>
                                       <TableCell>{format(new Date(b.departureDate), 'dd MMM yyyy')}</TableCell>
                                       <TableCell className="text-center">{b.nights}</TableCell>
@@ -338,18 +546,30 @@ function AdminDashboard() {
                                 </TableBody>
                               </Table>
                             </div>
-                            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t flex-wrap gap-2">
                               <span className="font-display font-bold text-xl sm:hidden">P{group.grandTotal.toLocaleString()}</span>
-                              {group.status === 'pending' && (
-                                <div className="flex gap-2 ml-auto">
-                                  <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground rounded-lg" onClick={() => handleConfirm(group.voucherNo)}>
-                                    <CheckCircle className="h-4 w-4 mr-1.5" /> Confirm
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5 rounded-lg" onClick={() => handleCancel(group.voucherNo)}>
-                                    <XCircle className="h-4 w-4 mr-1.5" /> Cancel
-                                  </Button>
-                                </div>
-                              )}
+                              <div className="flex gap-2 flex-wrap">
+                                {group.status === 'confirmed' && (
+                                  <>
+                                    <Button size="sm" variant="outline" onClick={() => openDocPreview(group, 'receipt')}>
+                                      <Receipt className="h-4 w-4 mr-1.5" /> Receipt
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => openDocPreview(group, 'voucher')}>
+                                      <FileCheck className="h-4 w-4 mr-1.5" /> Site Vouchers
+                                    </Button>
+                                  </>
+                                )}
+                                {group.status === 'pending' && (
+                                  <>
+                                    <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground rounded-lg" onClick={() => handleConfirm(group.voucherNo)}>
+                                      <CheckCircle className="h-4 w-4 mr-1.5" /> Confirm Payment
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5 rounded-lg" onClick={() => handleCancel(group.voucherNo)}>
+                                      <XCircle className="h-4 w-4 mr-1.5" /> Cancel
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -443,6 +663,32 @@ function AdminDashboard() {
             )}
           </TabsContent>
 
+          {/* MANAGE COMPANIES TAB */}
+          <TabsContent value="manage-companies" className="space-y-6">
+            <Card className="border-0 shadow-md">
+              <CardContent className="pt-6">
+                <h3 className="font-display text-lg font-bold mb-4">Manage Company List</h3>
+                <div className="flex gap-3 mb-6">
+                  <Input placeholder="New company name..." value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="max-w-sm" />
+                  <Button onClick={handleAddCompany} className="amber-glow text-accent-foreground border-0">
+                    <Plus className="h-4 w-4 mr-1.5" /> Add
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {companies.map(name => (
+                    <div key={name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <span className="font-medium">{name}</span>
+                      <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleDeleteCompany(name)}>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                      </Button>
+                    </div>
+                  ))}
+                  {companies.length === 0 && <p className="text-muted-foreground text-center py-8">No companies in the list yet.</p>}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* SITES TAB */}
           <TabsContent value="sites" className="space-y-6">
             <Card className="border-0 shadow-md">
@@ -520,7 +766,7 @@ function AdminDashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
-                          <TableHead className="text-xs uppercase">Site Voucher</TableHead>
+                          {group.status === 'confirmed' && <TableHead className="text-xs uppercase">Site Voucher</TableHead>}
                           <TableHead className="text-xs uppercase">Park</TableHead>
                           <TableHead className="text-xs uppercase">Site</TableHead>
                           <TableHead className="text-xs uppercase">Dates</TableHead>
@@ -531,7 +777,7 @@ function AdminDashboard() {
                       <TableBody>
                         {group.bookings.map((b: any) => (
                           <TableRow key={b.id}>
-                            <TableCell className="font-mono text-xs font-bold">{b.siteVoucherNo || '—'}</TableCell>
+                            {group.status === 'confirmed' && <TableCell className="font-mono text-xs font-bold">{b.siteVoucherNo || '—'}</TableCell>}
                             <TableCell>{b.parkName}</TableCell>
                             <TableCell>{b.siteName}</TableCell>
                             <TableCell className="text-muted-foreground">{format(new Date(b.arrivalDate), 'dd MMM')} — {format(new Date(b.departureDate), 'dd MMM yyyy')}</TableCell>
@@ -548,20 +794,30 @@ function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {previewGroup && (
+        <InvoicePreview
+          group={previewGroup}
+          mode={previewMode}
+          onClose={() => setPreviewGroup(null)}
+        />
+      )}
     </div>
   );
 }
 
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(false);
+  const [role, setRole] = useState<'admin' | 'accountant' | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id).eq('role', 'admin').maybeSingle();
-        setAuthed(!!roleData);
+        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
+        const roleList = (roles || []).map(r => r.role);
+        if (roleList.includes('admin')) setRole('admin');
+        else if (roleList.includes('accountant')) setRole('accountant');
       }
       setChecking(false);
     };
@@ -571,6 +827,7 @@ export default function AdminPage() {
   }, []);
 
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-background"><p className="text-muted-foreground">Checking access...</p></div>;
-  if (!authed) return <AdminLogin onLogin={() => setAuthed(true)} />;
+  if (!role) return <AdminLogin onLogin={(r) => setRole(r)} />;
+  if (role === 'accountant') return <AccountantDashboard />;
   return <AdminDashboard />;
 }
