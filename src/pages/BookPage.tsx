@@ -205,7 +205,8 @@ export default function BookPage() {
                 <CalendarCheck className="h-8 w-8 text-accent-foreground" />
               </div>
               <h1 className="font-display text-3xl font-bold mb-3">Booking Submitted!</h1>
-              <p className="text-muted-foreground mb-8">Your booking is pending confirmation by BOGA admin.</p>
+              <p className="text-muted-foreground mb-2">Your booking is pending confirmation by BOGA admin.</p>
+              <p className="text-sm text-warning font-medium mb-8">Reservation valid for 3 days. Please make payment to confirm.</p>
               <div className="bg-muted rounded-xl p-5 mb-6">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Voucher Number</p>
                 <p className="text-3xl font-bold font-mono">{submittedVoucher}</p>
@@ -330,7 +331,7 @@ export default function BookPage() {
               <p className="text-sm text-muted-foreground">{items.length} site{items.length > 1 ? 's' : ''} • {itemDetails.reduce((s, d) => s + d.nights, 0)} nights</p>
             </div>
             <Button size="lg" className="amber-glow text-accent-foreground border-0 px-10 py-6 rounded-xl font-semibold" disabled={!allValid} onClick={() => setShowInvoice(true)}>
-              Review Invoice <ArrowRight className="ml-2 h-5 w-5" />
+              Review Voucher <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </CardContent>
         </Card>

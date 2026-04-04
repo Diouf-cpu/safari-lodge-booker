@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Compass } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import bogaLogo from '@/assets/boga-logo.png';
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
@@ -31,7 +32,7 @@ export function Navbar() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}>
       <div className="container mx-auto flex items-center justify-between h-16 px-4">
         <Link to="/" className="flex items-center gap-2.5">
-          <Compass className={`h-6 w-6 ${scrolled || !isHome ? 'text-secondary' : 'text-secondary'}`} />
+          <img src={bogaLogo} alt="BOGA Logo" className="h-10 w-10 object-contain" />
           <span className={`font-display text-xl font-bold tracking-tight ${textColor}`}>BOGA</span>
         </Link>
 
