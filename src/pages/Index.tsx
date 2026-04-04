@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Compass, MapPin, CalendarCheck, Shield, ChevronRight } from 'lucide-react';
+import { ArrowRight, MapPin, CalendarCheck, Shield, ChevronRight } from 'lucide-react';
 import heroImage from '@/assets/hero-modern.jpg';
 import moremiImg from '@/assets/moremi.jpg';
 import chobeImg from '@/assets/chobe.jpg';
 import kalahariImg from '@/assets/kalahari.jpg';
+import bogaLogo from '@/assets/boga-logo.png';
 import { parks } from '@/data/parks';
 
 const parkImages: Record<string, string> = { moremi: moremiImg, chobe: chobeImg, kalahari: kalahariImg };
@@ -67,11 +68,21 @@ export default function Index() {
             Spearheading Citizen Empowerment in Tourism
           </h2>
           <p className="text-muted-foreground text-lg leading-relaxed mb-4">
-            Botswana Guides Association is a tourism body whose members comprise of 1,000 tour guides and 400 mobile safari companies. Headquartered in Maun, BOGA promotes the development of locally based tour and safari industry and works towards maintaining high standards, professionalism and ethics within Botswana's tourism sector.
+            BOGA – Botswana Guides Association, was established in 1999 at the request of Professional Guides in Maun, Botswana. A platform for Guides and Small Safari Operators to express their concerns and needs regarding the tourism industry. It is a networking and advisory organization that focuses particularly on the growth and development of tourism.
           </p>
-          <p className="text-muted-foreground leading-relaxed">
-            Our members regard the safari industry as an integral part of the country's Wildlife Management Programme and conservation in Botswana.
+          <p className="text-muted-foreground leading-relaxed mb-4">
+            Since its inception, BOGA has made great strides in assisting guides to acquire training, education and guide licenses. Our members regard the safari industry as an integral part of the country's Wildlife Management Programme and conservation in Botswana.
           </p>
+          <div className="grid sm:grid-cols-2 gap-6 mt-10 text-left">
+            <div className="bg-card rounded-xl p-6 border">
+              <h3 className="font-display font-semibold text-secondary mb-2">Our Mission</h3>
+              <p className="text-sm text-muted-foreground">A meaningful and sustainable participation of citizens in the tourism sector.</p>
+            </div>
+            <div className="bg-card rounded-xl p-6 border">
+              <h3 className="font-display font-semibold text-secondary mb-2">Our Vision</h3>
+              <p className="text-sm text-muted-foreground">Advocating and facilitating organization in promoting tourism issues.</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -86,7 +97,7 @@ export default function Index() {
             {[
               { step: '01', icon: MapPin, title: 'Choose Your Sites', desc: 'Browse parks and campsites across Moremi, Chobe, Savuti, CKGR, Khwai and more. See coordinates and details for every site.' },
               { step: '02', icon: CalendarCheck, title: 'Check & Book Dates', desc: 'View real-time availability, select your dates, and add multiple sites to a single booking. Prices calculate automatically.' },
-              { step: '03', icon: Shield, title: 'Get Your Invoice', desc: 'Review your invoice, download the PDF, share via WhatsApp or email, and submit. BOGA admin confirms your reservation.' },
+              { step: '03', icon: Shield, title: 'Get Your Voucher', desc: 'Review your booking voucher, download the PDF, share via WhatsApp or email, and submit. BOGA admin confirms within 3 days.' },
             ].map(({ step, icon: Icon, title, desc }, i) => (
               <div key={step} className="relative animate-fade-up" style={{ animationDelay: `${i * 0.15}s` }}>
                 <span className="font-display text-6xl font-extrabold text-muted/80 absolute -top-4 -left-2">{step}</span>
@@ -103,7 +114,7 @@ export default function Index() {
         </div>
       </section>
 
-      {/* Destinations - now shows 6 */}
+      {/* Destinations */}
       <section className="py-24 bg-background">
         <div className="container mx-auto px-4">
           <div className="flex items-end justify-between mb-12">
@@ -140,10 +151,23 @@ export default function Index() {
         </div>
       </section>
 
+      {/* BOGA Members */}
+      <section className="py-16 bg-card">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-4">Our Members</p>
+          <h2 className="font-display text-2xl md:text-3xl font-bold mb-8">Trusted Safari Operators</h2>
+          <div className="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
+            {['Delta Rain', 'Afrinature Safaris', 'Swampland Safaris', 'African Bush Safaris', 'African Excursions', 'Mopalo Safaris', 'Shipungo Safaris', 'Okavango Skimmers', 'Okavango Voyagers', 'Bush Lark', 'Rams Safaris', 'Wanda Safaris'].map(name => (
+              <span key={name} className="px-4 py-2 rounded-full bg-muted text-sm font-medium text-foreground">{name}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-24 dark-surface">
         <div className="container mx-auto px-4 text-center">
-          <Compass className="h-10 w-10 text-secondary mx-auto mb-6 animate-float" />
+          <img src={bogaLogo} alt="BOGA Logo" className="h-20 w-20 object-contain mx-auto mb-6" />
           <h2 className="font-display text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
             Ready to Experience Botswana?
           </h2>
@@ -161,13 +185,21 @@ export default function Index() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <Compass className="h-5 w-5 text-secondary" />
+              <img src={bogaLogo} alt="BOGA" className="h-8 w-8 object-contain" />
               <span className="font-display text-lg font-bold">BOGA</span>
             </div>
             <p className="text-sm text-muted-foreground text-center">
               Botswana Guides Association • Maun, Botswana • Spearheading Citizen Empowerment in Tourism
             </p>
-            <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} BOGA</p>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} BOGA</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Made with ♥ by{' '}
+                <a href="https://pamojadigital.org" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 font-semibold transition-colors">
+                  Pamoja
+                </a>
+              </p>
+            </div>
           </div>
         </div>
       </footer>

@@ -19,6 +19,10 @@ export async function addCompany(name: string): Promise<void> {
   await supabase.from('companies').upsert({ name }, { onConflict: 'name' });
 }
 
+export async function deleteCompany(name: string): Promise<void> {
+  await supabase.from('companies').delete().eq('name', name);
+}
+
 export async function getBookings() {
   const { data, error } = await supabase
     .from('bookings')
@@ -46,7 +50,6 @@ export async function addBookingGroup(
   const voucherNo = generateVoucherNo();
   const grandTotal = items.reduce((s, i) => s + i.totalAmount, 0);
 
-  // Save company if new
   await addCompany(companyName);
 
   const { data: group, error: groupError } = await supabase
@@ -83,35 +86,36 @@ export async function addBookingGroup(
     status: 'pending' as const,
   }));
 
-  const { error: bookingsError } = await supabase
-    .from('bookings')
-    .insert(bookingRows);
-
+  const { error: bookingsError } = await supabase.from('bookings').insert(bookingRows);
   if (bookingsError) throw bookingsError;
 
   return { ...group, voucherNo: group.voucher_no };
 }
 
 export async function confirmBooking(voucherNo: string) {
-  await supabase
-    .from('booking_groups')
-    .update({ status: 'confirmed' })
-    .eq('voucher_no', voucherNo);
-  await supabase
-    .from('bookings')
-    .update({ status: 'confirmed' })
-    .eq('voucher_no', voucherNo);
+  await supabase.from('booking_groups').update({ status: 'confirmed' }).eq('voucher_no', voucherNo);
+  await supabase.from('bookings').update({ status: 'confirmed' }).eq('voucher_no', voucherNo);
 }
 
 export async function cancelBooking(voucherNo: string) {
-  await supabase
+  await supabase.from('booking_groups').update({ status: 'cancelled' }).eq('voucher_no', voucherNo);
+  await supabase.from('bookings').update({ status: 'cancelled' }).eq('voucher_no', voucherNo);
+}
+
+export async function expireOldBookings() {
+  // Cancel pending bookings older than 3 days
+  const { data: expired } = await supabase
     .from('booking_groups')
-    .update({ status: 'cancelled' })
-    .eq('voucher_no', voucherNo);
-  await supabase
-    .from('bookings')
-    .update({ status: 'cancelled' })
-    .eq('voucher_no', voucherNo);
+    .select('voucher_no')
+    .eq('status', 'pending')
+    .lt('expires_at', new Date().toISOString());
+
+  if (expired && expired.length > 0) {
+    for (const g of expired) {
+      await cancelBooking(g.voucher_no);
+    }
+  }
+  return expired?.length || 0;
 }
 
 export async function isDateRangeAvailable(
@@ -214,4 +218,31 @@ export async function getSiteBookingStats() {
   });
 
   return Object.values(siteMap).sort((a, b) => b.total - a.total);
+}
+
+export async function getDailySummary(date: string) {
+  // Get all bookings confirmed on a given date
+  const startOfDay = `${date}T00:00:00.000Z`;
+  const endOfDay = `${date}T23:59:59.999Z`;
+
+  const { data } = await supabase
+    .from('booking_groups')
+    .select('*')
+    .eq('status', 'confirmed')
+    .gte('updated_at', startOfDay)
+    .lte('updated_at', endOfDay);
+
+  if (!data) return { groups: [], totalRevenue: 0 };
+
+  const totalRevenue = data.reduce((s, g) => s + Number(g.grand_total), 0);
+
+  return {
+    groups: data.map(g => ({
+      voucherNo: g.voucher_no,
+      companyName: g.company_name,
+      grandTotal: Number(g.grand_total),
+      confirmedAt: g.updated_at,
+    })),
+    totalRevenue,
+  };
 }

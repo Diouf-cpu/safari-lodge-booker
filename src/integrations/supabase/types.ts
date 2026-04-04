@@ -20,6 +20,7 @@ export type Database = {
           contact_email: string
           contact_phone: string
           created_at: string
+          expires_at: string | null
           grand_total: number
           id: string
           status: Database["public"]["Enums"]["booking_status"]
@@ -31,6 +32,7 @@ export type Database = {
           contact_email: string
           contact_phone: string
           created_at?: string
+          expires_at?: string | null
           grand_total?: number
           id?: string
           status?: Database["public"]["Enums"]["booking_status"]
@@ -42,6 +44,7 @@ export type Database = {
           contact_email?: string
           contact_phone?: string
           created_at?: string
+          expires_at?: string | null
           grand_total?: number
           id?: string
           status?: Database["public"]["Enums"]["booking_status"]
@@ -171,7 +174,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "accountant"
       booking_status: "pending" | "confirmed" | "cancelled"
     }
     CompositeTypes: {
@@ -300,7 +303,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "accountant"],
       booking_status: ["pending", "confirmed", "cancelled"],
     },
   },
