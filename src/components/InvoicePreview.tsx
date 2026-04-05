@@ -35,7 +35,7 @@ function generatePDF(group: InvoicePreviewProps['group'], mode: string = 'previe
   const pageWidth = doc.internal.pageSize.getWidth();
   const isReceipt = mode === 'receipt';
   const isVoucher = mode === 'voucher';
-  const title = isReceipt ? 'RECEIPT' : isVoucher ? 'BOOKING VOUCHER' : 'BOOKING VOUCHER';
+  const title = isReceipt ? 'RECEIPT' : isVoucher ? 'BOOKING VOUCHER' : 'BOOKING QUOTATION';
 
   // Header
   doc.setFontSize(22);
