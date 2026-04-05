@@ -589,13 +589,30 @@ function AdminDashboard() {
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
       <div className="container mx-auto px-4">
-        <div className="mb-10 flex items-start justify-between">
+        <div className="mb-6 flex items-start justify-between">
           <div>
             <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Administration</p>
             <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Booking Dashboard</h1>
             <p className="text-muted-foreground">Manage bookings, companies, analytics, and history.</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleLogout} className="mt-2"><LogOut className="h-4 w-4 mr-1.5" /> Sign Out</Button>
+        </div>
+
+        {/* Book for Client - prominent toggle at top */}
+        <div className="mb-8">
+          <Button
+            onClick={() => setShowBookClient(!showBookClient)}
+            className="amber-glow text-accent-foreground border-0 font-semibold px-6 py-3 text-base"
+            size="lg"
+          >
+            <UserPlus className="h-5 w-5 mr-2" />
+            {showBookClient ? 'Close Booking Form' : 'Book for Client — BOGA Reserve'}
+          </Button>
+          {showBookClient && (
+            <div className="mt-4">
+              <AdminBookForClient onBooked={() => { loadData(); setShowBookClient(false); }} />
+            </div>
+          )}
         </div>
 
         {/* Stats */}
