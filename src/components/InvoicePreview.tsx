@@ -35,7 +35,7 @@ function generatePDF(group: InvoicePreviewProps['group'], mode: string = 'previe
   const pageWidth = doc.internal.pageSize.getWidth();
   const isReceipt = mode === 'receipt';
   const isVoucher = mode === 'voucher';
-  const title = isReceipt ? 'RECEIPT' : isVoucher ? 'BOOKING VOUCHER' : 'BOOKING VOUCHER';
+  const title = isReceipt ? 'RECEIPT' : isVoucher ? 'BOOKING VOUCHER' : 'BOOKING QUOTATION';
 
   // Header
   doc.setFontSize(22);
@@ -142,7 +142,7 @@ function generatePDF(group: InvoicePreviewProps['group'], mode: string = 'previe
 export function InvoicePreview({ group, onClose, onConfirm, mode = 'preview' }: InvoicePreviewProps) {
   const isConfirmed = group.status === 'confirmed';
   const showSiteVouchers = isConfirmed || mode === 'receipt' || mode === 'voucher';
-  const docTitle = mode === 'receipt' ? 'Payment Receipt' : mode === 'voucher' ? 'Booking Voucher' : 'Booking Voucher Preview';
+  const docTitle = mode === 'receipt' ? 'Payment Receipt' : mode === 'voucher' ? 'Booking Voucher' : 'Booking Quotation';
 
   const invoiceText = `BOGA Campsite Booking Voucher\n\nVoucher: ${group.voucherNo}\nCompany: ${group.companyName}\nEmail: ${group.contactEmail}\nPhone: ${group.contactPhone}\n\nBookings:\n${group.items.map(b => `• ${b.parkName} - ${b.siteName}${showSiteVouchers && b.siteVoucherNo ? ` (${b.siteVoucherNo})` : ''}: ${b.arrivalDate} to ${b.departureDate} (${b.nights} nights) = P${b.totalAmount.toLocaleString()}`).join('\n')}\n\nTotal: P${group.grandTotal.toLocaleString()}\nRate: P${RATE_PER_NIGHT}/night`;
 
