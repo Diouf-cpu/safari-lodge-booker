@@ -430,6 +430,7 @@ function AdminDashboard() {
   const [siteStats, setSiteStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('bookings');
+  const [showBookClient, setShowBookClient] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const [siteSearch, setSiteSearch] = useState('');
   const [voucherSearch, setVoucherSearch] = useState('');
