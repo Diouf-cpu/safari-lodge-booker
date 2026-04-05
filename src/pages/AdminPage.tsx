@@ -221,6 +221,204 @@ function AccountantDashboard() {
   );
 }
 
+function AdminDatePicker({ label, value, onChange, siteId, minDate }: { label: string; value: string; onChange: (val: string) => void; siteId: string; minDate?: Date }) {
+  const [bookedDates, setBookedDates] = useState<{ date: Date; status: string }[]>([]);
+  const today = startOfDay(new Date());
+
+  useEffect(() => {
+    if (!siteId) { setBookedDates([]); return; }
+    getBookedDatesForSite(siteId).then(booked => {
+      const result: { date: Date; status: string }[] = [];
+      booked.forEach(b => {
+        try {
+          const days = eachDayOfInterval({ start: parseISO(b.start), end: parseISO(b.end) });
+          days.forEach(d => result.push({ date: d, status: b.status }));
+        } catch {}
+      });
+      setBookedDates(result);
+    });
+  }, [siteId]);
+
+  const disabledMatcher = (date: Date) => {
+    if (isBefore(date, minDate || today)) return true;
+    return bookedDates.some(b => b.status === 'confirmed' && date.getTime() === startOfDay(b.date).getTime());
+  };
+
+  const modifiers = {
+    booked_confirmed: bookedDates.filter(b => b.status === 'confirmed').map(b => b.date),
+    booked_pending: bookedDates.filter(b => b.status === 'pending').map(b => b.date),
+  };
+  const modifiersStyles = {
+    booked_confirmed: { backgroundColor: 'hsl(0 72% 51%)', color: 'white', borderRadius: '6px' },
+    booked_pending: { backgroundColor: 'hsl(38 92% 50%)', color: 'white', borderRadius: '6px' },
+  };
+
+  return (
+    <div>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className={cn("w-full mt-1 justify-start text-left font-normal", !value && "text-muted-foreground")}>
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {value ? format(parseISO(value), 'dd MMM yyyy') : <span>Pick a date</span>}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar mode="single" selected={value ? parseISO(value) : undefined}
+            onSelect={(date) => { if (date) onChange(format(date, 'yyyy-MM-dd')); }}
+            disabled={disabledMatcher} modifiers={modifiers} modifiersStyles={modifiersStyles}
+            initialFocus className="p-3 pointer-events-auto" />
+          <div className="px-3 pb-3 flex items-center gap-3 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-destructive inline-block" /> Confirmed</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-warning inline-block" /> Pending</span>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function AdminBookForClient({ onBooked }: { onBooked: () => void }) {
+  const bogaPark = parks.find(p => p.id === 'boga-reserve');
+  const [clientType, setClientType] = useState<'company' | 'individual'>('company');
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [companyName, setCompanyName] = useState('');
+  const [customCompany, setCustomCompany] = useState('');
+  const [individualName, setIndividualName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [siteId, setSiteId] = useState('');
+  const [arrivalDate, setArrivalDate] = useState('');
+  const [departureDate, setDepartureDate] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [availability, setAvailability] = useState<boolean | null>(null);
+
+  useEffect(() => { getCompanies().then(setCompanies); }, []);
+
+  const resolvedName = clientType === 'company'
+    ? (companyName === '__other__' ? customCompany : companyName)
+    : individualName;
+
+  const site = bogaPark?.sites.find(s => s.id === siteId);
+  const nights = arrivalDate && departureDate ? Math.max(0, differenceInDays(new Date(departureDate), new Date(arrivalDate))) : 0;
+  const total = nights * RATE_PER_NIGHT;
+
+  useEffect(() => {
+    if (siteId && arrivalDate && departureDate && nights > 0) {
+      isDateRangeAvailable(siteId, arrivalDate, departureDate).then(setAvailability);
+    } else {
+      setAvailability(null);
+    }
+  }, [siteId, arrivalDate, departureDate, nights]);
+
+  const allValid = resolvedName && contactEmail && contactPhone && siteId && arrivalDate && departureDate && nights > 0 && availability !== false;
+
+  const handleSubmit = async () => {
+    if (!allValid || submitting) return;
+    setSubmitting(true);
+    try {
+      await addBookingGroup(resolvedName, contactEmail, contactPhone, [{
+        parkId: 'boga-reserve', parkName: bogaPark!.name,
+        siteId, siteName: site!.name,
+        arrivalDate, departureDate, nights, ratePerNight: RATE_PER_NIGHT, totalAmount: total,
+      }]);
+      toast.success('Booking created for client!');
+      setCompanyName(''); setCustomCompany(''); setIndividualName('');
+      setContactEmail(''); setContactPhone(''); setSiteId('');
+      setArrivalDate(''); setDepartureDate('');
+      onBooked();
+    } catch (err: any) {
+      toast.error('Failed: ' + (err.message || 'Unknown error'));
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <Card className="border-0 shadow-md">
+      <CardContent className="pt-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl amber-glow flex items-center justify-center"><UserPlus className="h-5 w-5 text-accent-foreground" /></div>
+          <div>
+            <h3 className="font-display text-lg font-bold">Book for Client — BOGA Reserve</h3>
+            <p className="text-sm text-muted-foreground">Create a booking on behalf of a walk-in or phone client</p>
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Client Type</Label>
+            <Select value={clientType} onValueChange={(v: 'company' | 'individual') => setClientType(v)}>
+              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="company">Company</SelectItem>
+                <SelectItem value="individual">Individual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {clientType === 'company' ? (
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Company</Label>
+              <Select value={companyName} onValueChange={setCompanyName}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  <SelectItem value="__other__">✚ Other company...</SelectItem>
+                </SelectContent>
+              </Select>
+              {companyName === '__other__' && <Input className="mt-2" placeholder="Enter company name" value={customCompany} onChange={e => setCustomCompany(e.target.value)} />}
+            </div>
+          ) : (
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Full Name</Label>
+              <Input className="mt-1.5" placeholder="Client full name" value={individualName} onChange={e => setIndividualName(e.target.value)} />
+            </div>
+          )}
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email</Label>
+            <Input className="mt-1.5" type="email" placeholder="client@email.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Phone</Label>
+            <Input className="mt-1.5" type="tel" placeholder="+267 ..." value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-3 gap-4 mb-4">
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Camp Site</Label>
+            <Select value={siteId} onValueChange={setSiteId}>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select camp" /></SelectTrigger>
+              <SelectContent>
+                {bogaPark?.sites.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <AdminDatePicker label="Arrival Date" value={arrivalDate} onChange={setArrivalDate} siteId={siteId} />
+          <AdminDatePicker label="Departure Date" value={departureDate} onChange={setDepartureDate} siteId={siteId}
+            minDate={arrivalDate ? new Date(new Date(arrivalDate).getTime() + 86400000) : undefined} />
+        </div>
+
+        {nights > 0 && (
+          <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">{nights} night{nights > 1 ? 's' : ''} × P{RATE_PER_NIGHT}</span>
+              {availability === false && <Badge variant="destructive" className="text-xs">Unavailable</Badge>}
+              {availability === true && <Badge className="bg-success text-success-foreground text-xs">Available ✓</Badge>}
+            </div>
+            <span className="font-display font-bold text-xl">P{total.toLocaleString()}</span>
+          </div>
+        )}
+
+        <Button onClick={handleSubmit} disabled={!allValid || submitting} className="w-full amber-glow text-accent-foreground border-0 font-semibold py-5">
+          {submitting ? 'Creating...' : 'Create Booking for Client'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
