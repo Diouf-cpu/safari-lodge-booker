@@ -136,6 +136,24 @@ export const parks: Park[] = [
       { id: 'gadikwe3', name: 'Gadikwe 3', parkId: 'xakanaxa-islands', coordinates: 'S19°09\'34", E23°13\'58"' },
     ],
   },
+  {
+    id: 'boga-reserve',
+    name: 'BOGA Reserve',
+    description: 'The official BOGA campsite in Maun — managed directly by the Botswana Guides Association.',
+    image: 'moremi',
+    sites: [
+      { id: 'boga-camp-1', name: 'Camp 1', parkId: 'boga-reserve' },
+      { id: 'boga-camp-2', name: 'Camp 2', parkId: 'boga-reserve' },
+      { id: 'boga-camp-3', name: 'Camp 3', parkId: 'boga-reserve' },
+      { id: 'boga-camp-4', name: 'Camp 4', parkId: 'boga-reserve' },
+      { id: 'boga-camp-5', name: 'Camp 5', parkId: 'boga-reserve' },
+      { id: 'boga-camp-6', name: 'Camp 6', parkId: 'boga-reserve' },
+      { id: 'boga-camp-7', name: 'Camp 7', parkId: 'boga-reserve' },
+      { id: 'boga-camp-8', name: 'Camp 8', parkId: 'boga-reserve' },
+      { id: 'boga-camp-9', name: 'Camp 9', parkId: 'boga-reserve' },
+      { id: 'boga-camp-10', name: 'Camp 10', parkId: 'boga-reserve' },
+    ],
+  },
 ];
 
 export const companies = [
