@@ -661,19 +661,13 @@ function AdminDashboard() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-6 w-full max-w-4xl">
+          <TabsList className="grid grid-cols-5 w-full max-w-4xl">
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
-            <TabsTrigger value="book-client">Book for Client</TabsTrigger>
             <TabsTrigger value="companies">Companies</TabsTrigger>
             <TabsTrigger value="manage-companies">Manage List</TabsTrigger>
             <TabsTrigger value="sites">Sites</TabsTrigger>
             <TabsTrigger value="vouchers">Voucher Lookup</TabsTrigger>
           </TabsList>
-
-          {/* BOOK FOR CLIENT TAB */}
-          <TabsContent value="book-client">
-            <AdminBookForClient onBooked={loadData} />
-          </TabsContent>
 
           {/* BOOKINGS TAB */}
           <TabsContent value="bookings" className="space-y-6">
