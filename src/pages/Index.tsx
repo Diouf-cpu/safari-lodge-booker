@@ -192,7 +192,7 @@ export default function Index() {
               Botswana Guides Association • Maun, Botswana • Spearheading Citizen Empowerment in Tourism
             </p>
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} BOGA</p>
+              <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} <Link to="/admin" className="hover:text-secondary transition-colors cursor-pointer">BOGA</Link></p>
               <p className="text-xs text-muted-foreground mt-1">
                 Made with ♥ by{' '}
                 <a href="https://pamojadigital.org" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 font-semibold transition-colors">
