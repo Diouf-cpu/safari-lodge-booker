@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getGroupedBookings, confirmBooking, cancelBooking, getBookings, getSiteBookingStats, getCompanies, addCompany, deleteCompany, expireOldBookings, getDailySummary, addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
+import { getGroupedBookings, getBookingGroups, confirmBooking, cancelBooking, getBookings, getSiteBookingStats, getCompanies, addCompany, deleteCompany, expireOldBookings, getDailySummary, addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
