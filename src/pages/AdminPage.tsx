@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getGroupedBookings, confirmBooking, cancelBooking, getBookings, getSiteBookingStats, getCompanies, addCompany, deleteCompany, expireOldBookings, getDailySummary, addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
+import { getGroupedBookings, getBookingGroups, confirmBooking, cancelBooking, getBookings, getSiteBookingStats, getCompanies, addCompany, deleteCompany, expireOldBookings, getDailySummary, addBookingGroup, isDateRangeAvailable, getBookedDatesForSite } from '@/store/bookingStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,49 +75,130 @@ function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => vo
 }
 
 function AccountantDashboard() {
-  const [summaryDate, setSummaryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [summary, setSummary] = useState<{ groups: any[]; totalRevenue: number }>({ groups: [], totalRevenue: 0 });
-  const [allConfirmed, setAllConfirmed] = useState<any[]>([]);
+  const [dateFrom, setDateFrom] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
+  const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [allGroups, setAllGroups] = useState<any[]>([]);
+  const [allBookings, setAllBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const TAX_RATE = 0.14;
 
   useEffect(() => {
     const load = async () => {
-      const [s, bookings] = await Promise.all([
-        getDailySummary(summaryDate),
-        getBookings(),
-      ]);
-      setSummary(s);
-      setAllConfirmed(bookings.filter((b: any) => b.status === 'confirmed'));
+      setLoading(true);
+      const [groups, bookings] = await Promise.all([getBookingGroups(), getBookings()]);
+      setAllGroups(groups);
+      setAllBookings(bookings);
       setLoading(false);
     };
     load();
-  }, [summaryDate]);
+  }, []);
 
-  const totalConfirmedRevenue = allConfirmed.reduce((s, b) => s + Number(b.total_amount), 0);
+  const filteredGroups = useMemo(() => {
+    return allGroups.filter(g => {
+      const created = g.created_at?.slice(0, 10) || '';
+      const inRange = created >= dateFrom && created <= dateTo;
+      const matchesSearch = !search ||
+        g.voucher_no?.toLowerCase().includes(search.toLowerCase()) ||
+        g.company_name?.toLowerCase().includes(search.toLowerCase()) ||
+        g.contact_email?.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || g.status === statusFilter;
+      return inRange && matchesSearch && matchesStatus;
+    });
+  }, [allGroups, dateFrom, dateTo, search, statusFilter]);
+
+  const getGroupBookings = (groupId: string) => allBookings.filter(b => b.group_id === groupId);
+
+  const confirmedGroups = filteredGroups.filter(g => g.status === 'confirmed');
+  const pendingGroups = filteredGroups.filter(g => g.status === 'pending');
+  const cancelledGroups = filteredGroups.filter(g => g.status === 'cancelled');
+
+  const totalConfirmedRevenue = confirmedGroups.reduce((s, g) => s + Number(g.grand_total), 0);
+  const totalPendingRevenue = pendingGroups.reduce((s, g) => s + Number(g.grand_total), 0);
+  const totalCancelledRevenue = cancelledGroups.reduce((s, g) => s + Number(g.grand_total), 0);
+  const totalAllRevenue = filteredGroups.reduce((s, g) => s + Number(g.grand_total), 0);
+
+  const vatAmount = totalConfirmedRevenue - (totalConfirmedRevenue / (1 + TAX_RATE));
+  const revenueExVat = totalConfirmedRevenue - vatAmount;
+
+  const monthlyBreakdown = useMemo(() => {
+    const map: Record<string, { month: string; confirmed: number; pending: number; cancelled: number; total: number; count: number }> = {};
+    filteredGroups.forEach(g => {
+      const month = g.created_at?.slice(0, 7) || 'unknown';
+      if (!map[month]) map[month] = { month, confirmed: 0, pending: 0, cancelled: 0, total: 0, count: 0 };
+      const amt = Number(g.grand_total);
+      map[month].total += amt;
+      map[month].count++;
+      if (g.status === 'confirmed') map[month].confirmed += amt;
+      else if (g.status === 'pending') map[month].pending += amt;
+      else map[month].cancelled += amt;
+    });
+    return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
+  }, [filteredGroups]);
+
+  const parkBreakdown = useMemo(() => {
+    const map: Record<string, { park: string; revenue: number; bookings: number; nights: number }> = {};
+    const confirmedBookings = allBookings.filter(b => b.status === 'confirmed' && confirmedGroups.some(g => g.id === b.group_id));
+    confirmedBookings.forEach(b => {
+      const key = b.park_name;
+      if (!map[key]) map[key] = { park: key, revenue: 0, bookings: 0, nights: 0 };
+      map[key].revenue += Number(b.total_amount);
+      map[key].bookings++;
+      map[key].nights += b.nights;
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue);
+  }, [allBookings, confirmedGroups]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
 
-  if (loading) return <div className="min-h-screen pt-24 pb-16 bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
+  if (loading) return <div className="min-h-screen pt-24 pb-16 bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading dashboard...</p></div>;
 
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
       <div className="container mx-auto px-4">
-        <div className="mb-10 flex items-start justify-between">
+        <div className="mb-8 flex items-start justify-between">
           <div>
             <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Accountant</p>
             <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Finance Dashboard</h1>
-            <p className="text-muted-foreground">View confirmed payments and daily summaries.</p>
+            <p className="text-muted-foreground">Revenue, taxes, and booking financials.</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleLogout} className="mt-2"><LogOut className="h-4 w-4 mr-1.5" /> Sign Out</Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <Card className="border-0 shadow-md mb-6">
+          <CardContent className="pt-5 pb-4 flex flex-wrap items-center gap-4">
+            <Label className="text-sm font-medium whitespace-nowrap">Period:</Label>
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="max-w-[160px]" />
+            <span className="text-muted-foreground">to</span>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="max-w-[160px]" />
+            <div className="flex-1" />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search voucher or company..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 max-w-[240px]" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className="border-0 shadow-md">
             <CardContent className="pt-5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><DollarSign className="h-5 w-5 text-secondary" /></div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Confirmed Revenue</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Confirmed Revenue</p>
                   <p className="text-xl font-display font-bold">P{totalConfirmedRevenue.toLocaleString()}</p>
                 </div>
               </div>
@@ -126,10 +207,10 @@ function AccountantDashboard() {
           <Card className="border-0 shadow-md">
             <CardContent className="pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><CheckCircle className="h-5 w-5 text-secondary" /></div>
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><TrendingUp className="h-5 w-5 text-secondary" /></div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Confirmed Bookings</p>
-                  <p className="text-xl font-display font-bold">{allConfirmed.length}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Pending Revenue</p>
+                  <p className="text-xl font-display font-bold text-yellow-600">P{totalPendingRevenue.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -139,83 +220,269 @@ function AccountantDashboard() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><Receipt className="h-5 w-5 text-secondary" /></div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Daily Summary ({format(new Date(summaryDate), 'dd MMM')})</p>
-                  <p className="text-xl font-display font-bold">P{summary.totalRevenue.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">VAT (14%)</p>
+                  <p className="text-xl font-display font-bold">P{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-md">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"><BarChart3 className="h-5 w-5 text-secondary" /></div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Revenue (ex VAT)</p>
+                  <p className="text-xl font-display font-bold">P{revenueExVat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-0 shadow-md mb-6">
-          <CardContent className="pt-5 pb-4 flex items-center gap-4">
-            <Label className="text-sm font-medium whitespace-nowrap">Daily Summary Date:</Label>
-            <Input type="date" value={summaryDate} onChange={e => setSummaryDate(e.target.value)} className="max-w-xs" />
-          </CardContent>
-        </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="bg-card border shadow-sm">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="transactions">Transactions ({filteredGroups.length})</TabsTrigger>
+            <TabsTrigger value="parks">By Park</TabsTrigger>
+            <TabsTrigger value="monthly">Monthly</TabsTrigger>
+          </TabsList>
 
-        {summary.groups.length > 0 ? (
-          <div className="rounded-xl border overflow-hidden bg-card shadow-md mb-8">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="text-xs uppercase font-semibold">Voucher</TableHead>
-                  <TableHead className="text-xs uppercase font-semibold">Company</TableHead>
-                  <TableHead className="text-xs uppercase font-semibold">Confirmed At</TableHead>
-                  <TableHead className="text-xs uppercase font-semibold text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summary.groups.map((g: any) => (
-                  <TableRow key={g.voucherNo}>
-                    <TableCell className="font-mono text-sm">#{g.voucherNo}</TableCell>
-                    <TableCell className="font-semibold">{g.companyName}</TableCell>
-                    <TableCell className="text-muted-foreground">{format(new Date(g.confirmedAt), 'dd MMM yyyy HH:mm')}</TableCell>
-                    <TableCell className="text-right font-bold">P{g.grandTotal.toLocaleString()}</TableCell>
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card className="border-0 shadow-md">
+                <CardContent className="pt-6">
+                  <h3 className="font-display font-bold text-lg mb-4">Financial Summary</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between py-2 border-b"><span className="text-muted-foreground">Total Bookings</span><span className="font-semibold">{filteredGroups.length}</span></div>
+                    <div className="flex justify-between py-2 border-b"><span className="text-muted-foreground">Confirmed</span><span className="font-semibold text-green-600">{confirmedGroups.length} — P{totalConfirmedRevenue.toLocaleString()}</span></div>
+                    <div className="flex justify-between py-2 border-b"><span className="text-muted-foreground">Pending</span><span className="font-semibold text-yellow-600">{pendingGroups.length} — P{totalPendingRevenue.toLocaleString()}</span></div>
+                    <div className="flex justify-between py-2 border-b"><span className="text-muted-foreground">Cancelled</span><span className="font-semibold text-red-500">{cancelledGroups.length} — P{totalCancelledRevenue.toLocaleString()}</span></div>
+                    <div className="flex justify-between py-2 border-b"><span className="text-muted-foreground">Gross Revenue (confirmed)</span><span className="font-bold">P{totalConfirmedRevenue.toLocaleString()}</span></div>
+                    <div className="flex justify-between py-2 border-b"><span className="text-muted-foreground">VAT @ 14%</span><span className="font-semibold">P{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between py-2"><span className="font-display font-bold">Net Revenue (ex VAT)</span><span className="font-display font-bold text-lg">P{revenueExVat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-md">
+                <CardContent className="pt-6">
+                  <h3 className="font-display font-bold text-lg mb-4">Booking Status Breakdown</h3>
+                  <div className="space-y-4">
+                    {[
+                      { label: 'Confirmed', count: confirmedGroups.length, total: filteredGroups.length, color: 'bg-green-500' },
+                      { label: 'Pending', count: pendingGroups.length, total: filteredGroups.length, color: 'bg-yellow-500' },
+                      { label: 'Cancelled', count: cancelledGroups.length, total: filteredGroups.length, color: 'bg-red-500' },
+                    ].map(({ label, count, total, color }) => (
+                      <div key={label}>
+                        <div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">{label}</span><span className="font-medium">{count} / {total}</span></div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden"><div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-8">
+                    <h3 className="font-display font-bold text-lg mb-4">Top Parks by Revenue</h3>
+                    {parkBreakdown.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">No confirmed booking data yet.</p>
+                    ) : parkBreakdown.slice(0, 5).map(p => (
+                      <div key={p.park} className="flex justify-between py-2 border-b last:border-0"><span className="text-sm">{p.park}</span><span className="font-semibold text-sm">P{p.revenue.toLocaleString()}</span></div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="transactions">
+            <div className="rounded-xl border overflow-hidden bg-card shadow-md">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="text-xs uppercase font-semibold w-8"></TableHead>
+                    <TableHead className="text-xs uppercase font-semibold">Voucher</TableHead>
+                    <TableHead className="text-xs uppercase font-semibold">Company</TableHead>
+                    <TableHead className="text-xs uppercase font-semibold">Contact</TableHead>
+                    <TableHead className="text-xs uppercase font-semibold">Date</TableHead>
+                    <TableHead className="text-xs uppercase font-semibold text-center">Status</TableHead>
+                    <TableHead className="text-xs uppercase font-semibold text-right">Amount</TableHead>
+                    <TableHead className="text-xs uppercase font-semibold text-right">VAT</TableHead>
                   </TableRow>
-                ))}
-                <TableRow className="bg-muted/30">
-                  <TableCell colSpan={3} className="font-display font-bold">Daily Total</TableCell>
-                  <TableCell className="text-right font-display font-bold text-lg">P{summary.totalRevenue.toLocaleString()}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="text-center py-16 text-muted-foreground">No confirmed payments for {format(new Date(summaryDate), 'dd MMM yyyy')}.</div>
-        )}
+                </TableHeader>
+                <TableBody>
+                  {filteredGroups.length === 0 ? (
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No transactions found for this period.</TableCell></TableRow>
+                  ) : filteredGroups.map(g => {
+                    const groupBookings = getGroupBookings(g.id);
+                    const isExpanded = expandedGroup === g.id;
+                    const amt = Number(g.grand_total);
+                    const gVat = g.status === 'confirmed' ? amt - (amt / (1 + TAX_RATE)) : 0;
+                    return (
+                      <Fragment key={g.id}>
+                        <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => setExpandedGroup(isExpanded ? null : g.id)}>
+                          <TableCell>{isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                          <TableCell className="font-mono text-sm">#{g.voucher_no}</TableCell>
+                          <TableCell className="font-semibold">{g.company_name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{g.contact_email}<br />{g.contact_phone}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{format(new Date(g.created_at), 'dd MMM yyyy')}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={g.status === 'confirmed' ? 'default' : g.status === 'pending' ? 'secondary' : 'destructive'} className="text-xs">{g.status}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-bold">P{amt.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">{g.status === 'confirmed' ? `P${gVat.toFixed(2)}` : '—'}</TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="bg-muted/20 p-0">
+                              <div className="p-4">
+                                <p className="text-xs uppercase font-semibold text-muted-foreground mb-3">Booking Details — {groupBookings.length} site(s)</p>
+                                <div className="rounded-lg border overflow-hidden">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="bg-muted/40">
+                                        <TableHead className="text-xs">Park</TableHead>
+                                        <TableHead className="text-xs">Site</TableHead>
+                                        <TableHead className="text-xs">Voucher Code</TableHead>
+                                        <TableHead className="text-xs">Arrival</TableHead>
+                                        <TableHead className="text-xs">Departure</TableHead>
+                                        <TableHead className="text-xs text-center">Nights</TableHead>
+                                        <TableHead className="text-xs text-right">Rate/Night</TableHead>
+                                        <TableHead className="text-xs text-right">Total</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {groupBookings.map(b => (
+                                        <TableRow key={b.id}>
+                                          <TableCell className="text-sm">{b.park_name}</TableCell>
+                                          <TableCell className="text-sm font-medium">{b.site_name}</TableCell>
+                                          <TableCell className="font-mono text-xs">{b.site_voucher_no || '—'}</TableCell>
+                                          <TableCell className="text-sm">{format(new Date(b.arrival_date), 'dd MMM yyyy')}</TableCell>
+                                          <TableCell className="text-sm">{format(new Date(b.departure_date), 'dd MMM yyyy')}</TableCell>
+                                          <TableCell className="text-sm text-center">{b.nights}</TableCell>
+                                          <TableCell className="text-sm text-right">P{Number(b.rate_per_night).toLocaleString()}</TableCell>
+                                          <TableCell className="text-sm text-right font-semibold">P{Number(b.total_amount).toLocaleString()}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                      <TableRow className="bg-muted/30">
+                                        <TableCell colSpan={5} className="font-semibold text-sm">Subtotal</TableCell>
+                                        <TableCell className="text-center font-medium">{groupBookings.reduce((s, b) => s + b.nights, 0)}</TableCell>
+                                        <TableCell />
+                                        <TableCell className="text-right font-bold">P{groupBookings.reduce((s, b) => s + Number(b.total_amount), 0).toLocaleString()}</TableCell>
+                                      </TableRow>
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                  {filteredGroups.length > 0 && (
+                    <TableRow className="bg-muted/30 font-display">
+                      <TableCell colSpan={6} className="font-bold">Period Total</TableCell>
+                      <TableCell className="text-right font-bold text-lg">P{totalAllRevenue.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold">P{(totalConfirmedRevenue > 0 ? vatAmount : 0).toFixed(2)}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
 
-        <h2 className="font-display text-xl font-bold mb-4">All Confirmed Bookings</h2>
-        <div className="rounded-xl border overflow-hidden bg-card shadow-md">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="text-xs uppercase">Voucher</TableHead>
-                <TableHead className="text-xs uppercase">Company</TableHead>
-                <TableHead className="text-xs uppercase">Park</TableHead>
-                <TableHead className="text-xs uppercase">Site</TableHead>
-                <TableHead className="text-xs uppercase">Dates</TableHead>
-                <TableHead className="text-xs uppercase text-center">Nights</TableHead>
-                <TableHead className="text-xs uppercase text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allConfirmed.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No confirmed bookings yet</TableCell></TableRow>
-              ) : allConfirmed.map((b: any) => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-mono text-xs">{b.voucher_no}</TableCell>
-                  <TableCell className="font-semibold">{b.company_name}</TableCell>
-                  <TableCell>{b.park_name}</TableCell>
-                  <TableCell>{b.site_name}</TableCell>
-                  <TableCell className="text-muted-foreground">{format(new Date(b.arrival_date), 'dd MMM')} — {format(new Date(b.departure_date), 'dd MMM yyyy')}</TableCell>
-                  <TableCell className="text-center">{b.nights}</TableCell>
-                  <TableCell className="text-right font-medium">P{Number(b.total_amount).toLocaleString()}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+          <TabsContent value="parks">
+            <Card className="border-0 shadow-md">
+              <CardContent className="pt-6">
+                <h3 className="font-display font-bold text-lg mb-4">Revenue by Park / Reserve (Confirmed Only)</h3>
+                {parkBreakdown.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No confirmed booking data for this period.</p>
+                ) : (
+                  <div className="rounded-xl border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-xs uppercase font-semibold">Park / Reserve</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-center">Bookings</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-center">Total Nights</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">Revenue</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">VAT (14%)</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">Net (ex VAT)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parkBreakdown.map(p => {
+                          const pVat = p.revenue - (p.revenue / (1 + TAX_RATE));
+                          return (
+                            <TableRow key={p.park}>
+                              <TableCell className="font-semibold">{p.park}</TableCell>
+                              <TableCell className="text-center">{p.bookings}</TableCell>
+                              <TableCell className="text-center">{p.nights}</TableCell>
+                              <TableCell className="text-right font-medium">P{p.revenue.toLocaleString()}</TableCell>
+                              <TableCell className="text-right text-muted-foreground">P{pVat.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-semibold">P{(p.revenue - pVat).toFixed(2)}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        <TableRow className="bg-muted/30">
+                          <TableCell className="font-display font-bold">Total</TableCell>
+                          <TableCell className="text-center font-bold">{parkBreakdown.reduce((s, p) => s + p.bookings, 0)}</TableCell>
+                          <TableCell className="text-center font-bold">{parkBreakdown.reduce((s, p) => s + p.nights, 0)}</TableCell>
+                          <TableCell className="text-right font-display font-bold">P{parkBreakdown.reduce((s, p) => s + p.revenue, 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-semibold">P{vatAmount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-display font-bold">P{revenueExVat.toFixed(2)}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="monthly">
+            <Card className="border-0 shadow-md">
+              <CardContent className="pt-6">
+                <h3 className="font-display font-bold text-lg mb-4">Monthly Revenue Breakdown</h3>
+                {monthlyBreakdown.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No data for this period.</p>
+                ) : (
+                  <div className="rounded-xl border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-xs uppercase font-semibold">Month</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-center">Bookings</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">Confirmed</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">Pending</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">Cancelled</TableHead>
+                          <TableHead className="text-xs uppercase font-semibold text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {monthlyBreakdown.map(m => (
+                          <TableRow key={m.month}>
+                            <TableCell className="font-semibold">{format(new Date(m.month + '-01'), 'MMMM yyyy')}</TableCell>
+                            <TableCell className="text-center">{m.count}</TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">P{m.confirmed.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-yellow-600">P{m.pending.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-red-500">P{m.cancelled.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-bold">P{m.total.toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="bg-muted/30">
+                          <TableCell className="font-display font-bold">Total</TableCell>
+                          <TableCell className="text-center font-bold">{monthlyBreakdown.reduce((s, m) => s + m.count, 0)}</TableCell>
+                          <TableCell className="text-right font-bold text-green-600">P{monthlyBreakdown.reduce((s, m) => s + m.confirmed, 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-bold text-yellow-600">P{monthlyBreakdown.reduce((s, m) => s + m.pending, 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-bold text-red-500">P{monthlyBreakdown.reduce((s, m) => s + m.cancelled, 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-display font-bold text-lg">P{monthlyBreakdown.reduce((s, m) => s + m.total, 0).toLocaleString()}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
