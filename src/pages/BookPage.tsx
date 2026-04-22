@@ -185,7 +185,8 @@ export default function BookPage() {
   }), [items, availabilityMap]);
 
   const grandTotal = itemDetails.reduce((s, d) => s + d.total, 0);
-  const allValid = resolvedCompany && contactEmail && contactPhone && items.every((item, i) =>
+  const passwordSatisfied = !passwordGateApplies || passwordOk === true;
+  const allValid = resolvedCompany && contactEmail && contactPhone && passwordSatisfied && items.every((item, i) =>
     item.parkId && item.siteId && item.arrivalDate && item.departureDate &&
     itemDetails[i].nights > 0 && itemDetails[i].available !== false
   );
@@ -208,6 +209,11 @@ export default function BookPage() {
 
   const handleSubmit = async () => {
     if (!allValid || submitting) return;
+    // Re-verify password server-side at submit time to defend against tampering
+    if (passwordGateApplies && selectedCompany) {
+      const ok = await verifyCompanyPassword(selectedCompany.id, companyPassword);
+      if (!ok) { setPasswordOk(false); toast.error('Company password is invalid'); return; }
+    }
     setSubmitting(true);
     try {
       const bookingItems = items.map((item, i) => ({
