@@ -19,6 +19,8 @@ import { ConfirmPaymentDialog } from '@/components/reservation/ConfirmPaymentDia
 import { ExtendBookingDialog } from '@/components/reservation/ExtendBookingDialog';
 import { SwitchBookingDialog } from '@/components/reservation/SwitchBookingDialog';
 import { ExportButton } from '@/components/reservation/ExportButton';
+import { SiteBlackoutsPanel } from '@/components/reservation/SiteBlackoutsPanel';
+import { StaffInvitationsPanel } from '@/components/reservation/StaffInvitationsPanel';
 import { cancelBookingWithPolicy } from '@/store/operationsStore';
 import { format, differenceInDays, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
