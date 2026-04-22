@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
 import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompanies } from '@/store/bookingStore';
+import { findActiveMemberByEmail, memberStatus } from '@/store/reservationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,10 +12,12 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight, AlertCircle, Tent } from 'lucide-react';
 import { differenceInDays, format, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InvoicePreview } from '@/components/InvoicePreview';
+import { WaitlistDialog } from '@/components/WaitlistDialog';
+import { BogaReserveBookingForm } from '@/components/reservation/ReservationPanels';
 
 interface BookingItem {
   parkId: string;
