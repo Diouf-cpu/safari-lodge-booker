@@ -1102,6 +1102,20 @@ function AdminDashboard() {
                                     <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground rounded-lg" onClick={() => handleConfirm(group.voucherNo)}>
                                       <CheckCircle className="h-4 w-4 mr-1.5" /> Confirm Payment
                                     </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setExtendTarget({
+                                        voucherNo: group.voucherNo,
+                                        companyName: group.companyName,
+                                        currentExpiry: group.expires_at,
+                                        alreadyExtended: !!group.extended_once,
+                                      })}
+                                      disabled={!!group.extended_once}
+                                      title={group.extended_once ? 'Already extended once' : 'Grant +7 day extension (one-time)'}
+                                    >
+                                      ⏱ {group.extended_once ? 'Extended' : 'Extend +7d'}
+                                    </Button>
                                     <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5 rounded-lg" onClick={() => handleCancel(group.voucherNo)}>
                                       <XCircle className="h-4 w-4 mr-1.5" /> Cancel
                                     </Button>
