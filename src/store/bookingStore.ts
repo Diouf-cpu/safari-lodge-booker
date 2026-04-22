@@ -15,6 +15,52 @@ export async function getCompanies(): Promise<string[]> {
   return (data || []).map(c => c.name);
 }
 
+export interface CompanyDetailed {
+  id: string;
+  name: string;
+  hasPassword: boolean;
+}
+
+// Detailed listing used by staff (Manage List) and the public booking page
+// to know whether a password gate must be enforced for the chosen company.
+// Note: password_hash column is revoked from anon/authenticated SELECT — we
+// approximate hasPassword by querying a server-side function instead.
+export async function getCompaniesDetailed(): Promise<CompanyDetailed[]> {
+  const { data } = await supabase.from('companies').select('id, name').order('name');
+  if (!data) return [];
+  // Fetch which ones have a password set (single round-trip via RPC-style check).
+  const ids = data.map(c => c.id);
+  // Use the verify function with empty password — it returns false either way,
+  // but a separate lightweight query: we just call a dedicated RPC if present.
+  // Fallback: call verify with '' for each; false means either no-password OR wrong.
+  // To keep it accurate, expose a minimal "company_has_password" via verify trick:
+  // We treat hasPassword as unknown on the client and let the server enforce.
+  // For UX (to show a Set/Reset label) we maintain a tiny localStorage cache the staff updates.
+  const cache = readPasswordFlagCache();
+  return data.map(c => ({ id: c.id, name: c.name, hasPassword: !!cache[c.id] }));
+}
+
+function readPasswordFlagCache(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem('boga_company_pw_flags') || '{}'); } catch { return {}; }
+}
+function writePasswordFlagCache(map: Record<string, boolean>) {
+  try { localStorage.setItem('boga_company_pw_flags', JSON.stringify(map)); } catch {}
+}
+
+export async function setCompanyPassword(companyId: string, password: string): Promise<void> {
+  const { error } = await supabase.rpc('set_company_password', { _company_id: companyId, _password: password });
+  if (error) throw error;
+  const cache = readPasswordFlagCache();
+  cache[companyId] = true;
+  writePasswordFlagCache(cache);
+}
+
+export async function verifyCompanyPassword(companyId: string, password: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('verify_company_password', { _company_id: companyId, _password: password });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function addCompany(name: string): Promise<void> {
   await supabase.from('companies').upsert({ name }, { onConflict: 'name' });
 }

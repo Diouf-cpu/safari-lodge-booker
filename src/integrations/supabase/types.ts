@@ -252,16 +252,19 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          password_hash: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          password_hash?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          password_hash?: string | null
         }
         Relationships: []
       }
@@ -508,6 +511,14 @@ export type Database = {
       member_current_status: {
         Args: { _subscription_end: string }
         Returns: string
+      }
+      set_company_password: {
+        Args: { _company_id: string; _password: string }
+        Returns: undefined
+      }
+      verify_company_password: {
+        Args: { _company_id: string; _password: string }
+        Returns: boolean
       }
     }
     Enums: {

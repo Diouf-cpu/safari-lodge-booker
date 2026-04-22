@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
-import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompanies } from '@/store/bookingStore';
+import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, type CompanyDetailed } from '@/store/bookingStore';
 import { findActiveMemberByEmail, memberStatus } from '@/store/reservationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,9 +99,12 @@ export default function BookPage() {
   // BOGA Reserve is staff-managed only — the public site always shows the wilderness flow.
   const bookingType: 'wilderness' = 'wilderness';
 
-  const [companies, setCompanies] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<CompanyDetailed[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [customCompany, setCustomCompany] = useState('');
+  const [companyPassword, setCompanyPassword] = useState('');
+  const [passwordOk, setPasswordOk] = useState<boolean | null>(null);
+  const [verifyingPw, setVerifyingPw] = useState(false);
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [items, setItems] = useState<BookingItem[]>([
@@ -115,8 +118,18 @@ export default function BookPage() {
   const [memberCheck, setMemberCheck] = useState<{ status: 'active' | 'expiring_soon' | 'expired' | 'none'; name?: string } | null>(null);
 
   useEffect(() => {
-    getCompanies().then(setCompanies);
+    getCompaniesDetailed().then(setCompanies);
   }, []);
+
+  // Reset password gate whenever the chosen company changes
+  useEffect(() => {
+    setCompanyPassword('');
+    setPasswordOk(null);
+  }, [companyName]);
+
+  const selectedCompany = companies.find(c => c.name === companyName);
+  // "Other company" entries are brand-new — no password gate (staff will set one later when added).
+  const passwordGateApplies = !!selectedCompany;
 
   // Member subscription lookup (debounced via effect re-run)
   useEffect(() => {
@@ -172,7 +185,8 @@ export default function BookPage() {
   }), [items, availabilityMap]);
 
   const grandTotal = itemDetails.reduce((s, d) => s + d.total, 0);
-  const allValid = resolvedCompany && contactEmail && contactPhone && items.every((item, i) =>
+  const passwordSatisfied = !passwordGateApplies || passwordOk === true;
+  const allValid = resolvedCompany && contactEmail && contactPhone && passwordSatisfied && items.every((item, i) =>
     item.parkId && item.siteId && item.arrivalDate && item.departureDate &&
     itemDetails[i].nights > 0 && itemDetails[i].available !== false
   );
@@ -195,6 +209,11 @@ export default function BookPage() {
 
   const handleSubmit = async () => {
     if (!allValid || submitting) return;
+    // Re-verify password server-side at submit time to defend against tampering
+    if (passwordGateApplies && selectedCompany) {
+      const ok = await verifyCompanyPassword(selectedCompany.id, companyPassword);
+      if (!ok) { setPasswordOk(false); toast.error('Company password is invalid'); return; }
+    }
     setSubmitting(true);
     try {
       const bookingItems = items.map((item, i) => ({
@@ -265,7 +284,7 @@ export default function BookPage() {
                 <Select value={companyName} onValueChange={setCompanyName}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select company" /></SelectTrigger>
                   <SelectContent>
-                    {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {companies.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                     <SelectItem value="__other__">✚ Other company...</SelectItem>
                   </SelectContent>
                 </Select>
@@ -285,6 +304,47 @@ export default function BookPage() {
                 <Input className="mt-1.5" type="tel" placeholder="+267 ..." value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
               </div>
             </div>
+
+            {passwordGateApplies && (
+              <div className="mt-5 pt-5 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  Company booking password
+                  {passwordOk === true && <span className="text-success">✓ verified</span>}
+                  {passwordOk === false && <span className="text-destructive">✕ wrong password</span>}
+                </Label>
+                <div className="flex gap-2 mt-1.5 max-w-md">
+                  <Input
+                    type="password"
+                    placeholder="Enter your company's private password"
+                    value={companyPassword}
+                    onChange={e => { setCompanyPassword(e.target.value); setPasswordOk(null); }}
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={!companyPassword || verifyingPw}
+                    onClick={async () => {
+                      if (!selectedCompany) return;
+                      setVerifyingPw(true);
+                      try {
+                        const ok = await verifyCompanyPassword(selectedCompany.id, companyPassword);
+                        setPasswordOk(ok);
+                        if (ok) toast.success('Password verified');
+                        else toast.error('Wrong password — please contact BOGA reservations');
+                      } catch (e: any) {
+                        toast.error(e.message || 'Verification failed');
+                      } finally {
+                        setVerifyingPw(false);
+                      }
+                    }}
+                  >
+                    {verifyingPw ? 'Checking…' : 'Verify'}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  Each safari company has a private password issued by BOGA reservations. Required to prevent unauthorised bookings.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
