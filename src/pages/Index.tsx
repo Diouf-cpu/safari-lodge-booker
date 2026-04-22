@@ -32,13 +32,18 @@ export default function Index() {
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-up" style={{ animationDelay: '0.45s' }}>
               <Button asChild size="lg" className="amber-glow text-accent-foreground font-semibold px-8 py-6 text-base border-0 rounded-xl hover:opacity-90 transition-opacity">
                 <Link to="/book">
-                  Book a Campsite <ArrowRight className="ml-2 h-5 w-5" />
+                  Wildlife Reserves (Members) <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 px-8 py-6 text-base rounded-xl">
-                <Link to="/availability">Check Availability</Link>
+              <Button asChild size="lg" variant="outline" className="border-secondary/40 bg-secondary/10 text-primary-foreground hover:bg-secondary/20 font-semibold px-8 py-6 text-base rounded-xl">
+                <Link to="/book?type=boga-reserve">
+                  BOGA Reserve Camp · Maun (Individuals)
+                </Link>
               </Button>
             </div>
+            <p className="text-xs text-primary-foreground/50 mt-3 max-w-md">
+              Wilderness sites are reserved by registered safari companies. The BOGA Reserve in Maun is open to individual guests, charged per person per night.
+            </p>
           </div>
         </div>
       </section>
@@ -192,7 +197,7 @@ export default function Index() {
               Botswana Guides Association • Maun, Botswana • Spearheading Citizen Empowerment in Tourism
             </p>
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} <Link to="/admin" className="hover:text-secondary transition-colors cursor-pointer">BOGA</Link></p>
+              <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} <Link to="/admin" className="hover:text-secondary transition-colors cursor-pointer" aria-label="Reservation desk">BOGA</Link> · <Link to="/admin" className="hover:text-secondary transition-colors text-[10px] uppercase tracking-wider">Reservation</Link></p>
               <p className="text-xs text-muted-foreground mt-1">
                 Made with ♥ by{' '}
                 <a href="https://pamojadigital.org" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 font-semibold transition-colors">
