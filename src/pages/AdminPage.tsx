@@ -1043,18 +1043,37 @@ function AdminDashboard() {
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider">Departure</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Nights</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">Amount</TableHead>
+                                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">Action</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {group.bookings.map((b: any) => (
                                     <TableRow key={b.id}>
-                                      <TableCell className="font-medium">{b.parkName}</TableCell>
+                                      <TableCell className="font-medium">
+                                        {b.parkName}
+                                        {b.original_site_id && (
+                                          <span className="block text-[10px] text-muted-foreground">
+                                            ↻ switched from {b.original_site_name}
+                                          </span>
+                                        )}
+                                      </TableCell>
                                       <TableCell>{b.siteName}</TableCell>
                                       {group.status === 'confirmed' && <TableCell className="font-mono text-xs text-muted-foreground">{b.siteVoucherNo || '—'}</TableCell>}
                                       <TableCell>{format(new Date(b.arrivalDate), 'dd MMM yyyy')}</TableCell>
                                       <TableCell>{format(new Date(b.departureDate), 'dd MMM yyyy')}</TableCell>
                                       <TableCell className="text-center">{b.nights}</TableCell>
                                       <TableCell className="text-right font-medium">P{b.totalAmount.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right">
+                                        {group.status !== 'cancelled' && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setSwitchTarget(b)}
+                                          >
+                                            Switch
+                                          </Button>
+                                        )}
+                                      </TableCell>
                                     </TableRow>
                                   ))}
                                 </TableBody>
@@ -1071,6 +1090,11 @@ function AdminDashboard() {
                                     <Button size="sm" variant="outline" onClick={() => openDocPreview(group, 'voucher')}>
                                       <FileCheck className="h-4 w-4 mr-1.5" /> Site Vouchers
                                     </Button>
+                                    {group.payment_method && (
+                                      <span className="text-xs px-2 py-1 rounded bg-success/10 text-success self-center">
+                                        Paid: {group.payment_method}{group.payment_reference ? ` (${group.payment_reference})` : ''}
+                                      </span>
+                                    )}
                                   </>
                                 )}
                                 {group.status === 'pending' && (
