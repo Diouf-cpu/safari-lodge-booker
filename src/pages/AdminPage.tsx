@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, CalendarIcon, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck, UserPlus, BellRing, Tent } from 'lucide-react';
+import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, CalendarIcon, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck, UserPlus, BellRing, Tent, Ban, UserCog, Eye } from 'lucide-react';
 import { NotificationsPanel, MembersPanel, WaitlistPanel, BogaReserveBookingForm } from '@/components/reservation/ReservationPanels';
 import { CompanyPasswordManager } from '@/components/reservation/CompanyPasswordManager';
 import { ConfirmPaymentDialog } from '@/components/reservation/ConfirmPaymentDialog';
