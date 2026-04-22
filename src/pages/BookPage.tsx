@@ -99,9 +99,12 @@ export default function BookPage() {
   // BOGA Reserve is staff-managed only — the public site always shows the wilderness flow.
   const bookingType: 'wilderness' = 'wilderness';
 
-  const [companies, setCompanies] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<CompanyDetailed[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [customCompany, setCustomCompany] = useState('');
+  const [companyPassword, setCompanyPassword] = useState('');
+  const [passwordOk, setPasswordOk] = useState<boolean | null>(null);
+  const [verifyingPw, setVerifyingPw] = useState(false);
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [items, setItems] = useState<BookingItem[]>([
@@ -115,8 +118,18 @@ export default function BookPage() {
   const [memberCheck, setMemberCheck] = useState<{ status: 'active' | 'expiring_soon' | 'expired' | 'none'; name?: string } | null>(null);
 
   useEffect(() => {
-    getCompanies().then(setCompanies);
+    getCompaniesDetailed().then(setCompanies);
   }, []);
+
+  // Reset password gate whenever the chosen company changes
+  useEffect(() => {
+    setCompanyPassword('');
+    setPasswordOk(null);
+  }, [companyName]);
+
+  const selectedCompany = companies.find(c => c.name === companyName);
+  // "Other company" entries are brand-new — no password gate (staff will set one later when added).
+  const passwordGateApplies = !!selectedCompany;
 
   // Member subscription lookup (debounced via effect re-run)
   useEffect(() => {
