@@ -107,7 +107,7 @@ export function StaffInvitationsPanel({ readOnly = false }: { readOnly?: boolean
                     <TableCell><Badge variant="outline" className="capitalize">{s.role}</Badge></TableCell>
                     <TableCell>
                       {s.revoked ? <Badge variant="destructive">Revoked</Badge>
-                        : s.activated ? <Badge className="bg-emerald-600 text-white"><ShieldCheck className="h-3 w-3 mr-1" />Active</Badge>
+                        : s.activated ? <Badge className="bg-primary text-primary-foreground"><ShieldCheck className="h-3 w-3 mr-1" />Active</Badge>
                           : <Badge variant="secondary">Pending first login</Badge>}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{format(new Date(s.invited_at), 'MMM d, yyyy')}</TableCell>
