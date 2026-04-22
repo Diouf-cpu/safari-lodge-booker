@@ -92,9 +92,12 @@ function DateCalendarPicker({
   );
 }
 
+const wildernessParks = parks.filter(p => p.id !== 'boga-reserve');
+
 export default function BookPage() {
   const [searchParams] = useSearchParams();
   const preselectedPark = searchParams.get('park') || '';
+  const bookingType = searchParams.get('type') === 'boga-reserve' ? 'boga-reserve' : 'wilderness';
 
   const [companies, setCompanies] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -109,10 +112,24 @@ export default function BookPage() {
   const [submittedVoucher, setSubmittedVoucher] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [availabilityMap, setAvailabilityMap] = useState<Record<number, boolean | null>>({});
+  const [memberCheck, setMemberCheck] = useState<{ status: 'active' | 'expiring_soon' | 'expired' | 'none'; name?: string } | null>(null);
 
   useEffect(() => {
     getCompanies().then(setCompanies);
   }, []);
+
+  // Member subscription lookup (debounced via effect re-run)
+  useEffect(() => {
+    if (!contactEmail || !contactEmail.includes('@')) { setMemberCheck(null); return; }
+    const t = setTimeout(async () => {
+      const m = await findActiveMemberByEmail(contactEmail);
+      if (!m) { setMemberCheck({ status: 'none' }); return; }
+      setMemberCheck({ status: memberStatus(m.subscription_end), name: m.name });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [contactEmail]);
+
+  const memberBlocked = memberCheck?.status === 'expired';
 
   const resolvedCompany = companyName === '__other__' ? customCompany : companyName;
 
