@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, CalendarIcon, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck, UserPlus, BellRing, Tent } from 'lucide-react';
 import { NotificationsPanel, MembersPanel, WaitlistPanel, BogaReserveBookingForm } from '@/components/reservation/ReservationPanels';
+import { CompanyPasswordManager } from '@/components/reservation/CompanyPasswordManager';
 import { format, differenceInDays, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
 import { InvoicePreview } from '@/components/InvoicePreview';
@@ -1161,24 +1162,12 @@ function AdminDashboard() {
           <TabsContent value="manage-companies" className="space-y-6">
             <Card className="border-0 shadow-md">
               <CardContent className="pt-6">
-                <h3 className="font-display text-lg font-bold mb-4">Manage Company List</h3>
-                <div className="flex gap-3 mb-6">
-                  <Input placeholder="New company name..." value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="max-w-sm" />
-                  <Button onClick={handleAddCompany} className="amber-glow text-accent-foreground border-0">
-                    <Plus className="h-4 w-4 mr-1.5" /> Add
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {companies.map(name => (
-                    <div key={name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                      <span className="font-medium">{name}</span>
-                      <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleDeleteCompany(name)}>
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                      </Button>
-                    </div>
-                  ))}
-                  {companies.length === 0 && <p className="text-muted-foreground text-center py-8">No companies in the list yet.</p>}
-                </div>
+                <h3 className="font-display text-lg font-bold mb-1">Manage Company List & Booking Passwords</h3>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Each company needs a private password before they can submit a booking on the public site.
+                  Set or reset it here, then share it with the company directly.
+                </p>
+                <CompanyPasswordManager />
               </CardContent>
             </Card>
           </TabsContent>
