@@ -16,37 +16,46 @@ export type Database = {
     Tables: {
       booking_groups: {
         Row: {
+          booker_type: string
           company_name: string
           contact_email: string
           contact_phone: string
           created_at: string
           expires_at: string | null
+          expiry_warning_sent: boolean
           grand_total: number
           id: string
+          member_id: string | null
           status: Database["public"]["Enums"]["booking_status"]
           updated_at: string
           voucher_no: string
         }
         Insert: {
+          booker_type?: string
           company_name: string
           contact_email: string
           contact_phone: string
           created_at?: string
           expires_at?: string | null
+          expiry_warning_sent?: boolean
           grand_total?: number
           id?: string
+          member_id?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
           voucher_no: string
         }
         Update: {
+          booker_type?: string
           company_name?: string
           contact_email?: string
           contact_phone?: string
           created_at?: string
           expires_at?: string | null
+          expiry_warning_sent?: boolean
           grand_total?: number
           id?: string
+          member_id?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
           voucher_no?: string
@@ -56,16 +65,21 @@ export type Database = {
       bookings: {
         Row: {
           arrival_date: string
+          booking_type: string
           company_name: string
           contact_email: string
           contact_phone: string
           created_at: string
           departure_date: string
           group_id: string
+          guest_count: number | null
           id: string
+          id_number: string | null
+          nationality: string | null
           nights: number
           park_id: string
           park_name: string
+          per_person_rate: number | null
           rate_per_night: number
           site_id: string
           site_name: string
@@ -76,16 +90,21 @@ export type Database = {
         }
         Insert: {
           arrival_date: string
+          booking_type?: string
           company_name: string
           contact_email: string
           contact_phone: string
           created_at?: string
           departure_date: string
           group_id: string
+          guest_count?: number | null
           id?: string
+          id_number?: string | null
+          nationality?: string | null
           nights: number
           park_id: string
           park_name: string
+          per_person_rate?: number | null
           rate_per_night: number
           site_id: string
           site_name: string
@@ -96,16 +115,21 @@ export type Database = {
         }
         Update: {
           arrival_date?: string
+          booking_type?: string
           company_name?: string
           contact_email?: string
           contact_phone?: string
           created_at?: string
           departure_date?: string
           group_id?: string
+          guest_count?: number | null
           id?: string
+          id_number?: string | null
+          nationality?: string | null
           nights?: number
           park_id?: string
           park_name?: string
+          per_person_rate?: number | null
           rate_per_night?: number
           site_id?: string
           site_name?: string
@@ -142,6 +166,84 @@ export type Database = {
         }
         Relationships: []
       }
+      members: {
+        Row: {
+          country: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          status: string
+          subscription_end: string
+          subscription_start: string
+          updated_at: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          status?: string
+          subscription_end: string
+          subscription_start?: string
+          updated_at?: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          status?: string
+          subscription_end?: string
+          subscription_start?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          read: boolean
+          related_id: string | null
+          related_kind: string | null
+          severity: string
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean
+          related_id?: string | null
+          related_kind?: string | null
+          severity?: string
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean
+          related_id?: string | null
+          related_kind?: string | null
+          severity?: string
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -160,6 +262,66 @@ export type Database = {
         }
         Relationships: []
       }
+      waitlist_requests: {
+        Row: {
+          arrival_date: string
+          booking_id: string | null
+          created_at: string
+          departure_date: string
+          id: string
+          message: string | null
+          park_id: string
+          park_name: string
+          request_type: string
+          requester_email: string
+          requester_name: string
+          requester_phone: string
+          site_id: string
+          site_name: string
+          staff_notes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          arrival_date: string
+          booking_id?: string | null
+          created_at?: string
+          departure_date: string
+          id?: string
+          message?: string | null
+          park_id: string
+          park_name: string
+          request_type?: string
+          requester_email: string
+          requester_name: string
+          requester_phone: string
+          site_id: string
+          site_name: string
+          staff_notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          arrival_date?: string
+          booking_id?: string | null
+          created_at?: string
+          departure_date?: string
+          id?: string
+          message?: string | null
+          park_id?: string
+          park_name?: string
+          request_type?: string
+          requester_email?: string
+          requester_name?: string
+          requester_phone?: string
+          site_id?: string
+          site_name?: string
+          staff_notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -171,6 +333,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      member_current_status: {
+        Args: { _subscription_end: string }
+        Returns: string
       }
     }
     Enums: {
