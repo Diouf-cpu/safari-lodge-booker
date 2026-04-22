@@ -15,6 +15,11 @@ import { toast } from 'sonner';
 import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, CalendarIcon, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck, UserPlus, BellRing, Tent } from 'lucide-react';
 import { NotificationsPanel, MembersPanel, WaitlistPanel, BogaReserveBookingForm } from '@/components/reservation/ReservationPanels';
 import { CompanyPasswordManager } from '@/components/reservation/CompanyPasswordManager';
+import { ConfirmPaymentDialog } from '@/components/reservation/ConfirmPaymentDialog';
+import { ExtendBookingDialog } from '@/components/reservation/ExtendBookingDialog';
+import { SwitchBookingDialog } from '@/components/reservation/SwitchBookingDialog';
+import { ExportButton } from '@/components/reservation/ExportButton';
+import { cancelBookingWithPolicy } from '@/store/operationsStore';
 import { format, differenceInDays, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
 import { InvoicePreview } from '@/components/InvoicePreview';
@@ -191,6 +196,25 @@ function AccountantDashboard() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            <ExportButton
+              rows={filteredGroups as any[]}
+              getDate={(g: any) => g.created_at}
+              mapRow={(g: any) => ({
+                voucher: g.voucher_no,
+                company: g.company_name,
+                status: g.status,
+                payment_method: g.payment_method ?? '',
+                payment_reference: g.payment_reference ?? '',
+                paid_at: g.paid_at ?? '',
+                cancellation_type: g.cancellation_type ?? '',
+                cancellation_kept: g.cancellation_kept_amount ?? '',
+                cancellation_refund: g.cancellation_refund_amount ?? '',
+                grand_total: g.grand_total,
+                created_at: g.created_at,
+              })}
+              filenamePrefix="accountant_transactions"
+              label="Export"
+            />
           </CardContent>
         </Card>
 
@@ -707,6 +731,10 @@ function AdminDashboard() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [previewGroup, setPreviewGroup] = useState<any>(null);
   const [previewMode, setPreviewMode] = useState<'receipt' | 'voucher'>('receipt');
+  // New operation dialogs (confirm payment / extend / switch)
+  const [confirmTarget, setConfirmTarget] = useState<any>(null);
+  const [extendTarget, setExtendTarget] = useState<any>(null);
+  const [switchTarget, setSwitchTarget] = useState<any>(null);
 
   const loadData = async () => {
     try {
@@ -793,15 +821,25 @@ function AdminDashboard() {
   }, [allBookings, selectedCompany]);
 
   const handleConfirm = async (voucherNo: string) => {
-    await confirmBooking(voucherNo);
-    await loadData();
-    toast.success(`Booking ${voucherNo} confirmed`);
+    // Open the payment-method dialog instead of confirming silently
+    const g = groups.find((g: any) => g.voucherNo === voucherNo);
+    if (!g) return;
+    setConfirmTarget({ voucherNo, companyName: g.companyName, amount: g.grandTotal });
   };
 
   const handleCancel = async (voucherNo: string) => {
-    await cancelBooking(voucherNo);
+    const g = groups.find((g: any) => g.voucherNo === voucherNo);
+    const wasPaid = g?.status === 'confirmed' || !!g?.paid_at;
+    const type = wasPaid ? 'paid_refund' : 'unpaid_auto';
+    const ok = confirm(
+      wasPaid
+        ? 'Cancel this PAID booking? A 50% / 50% refund split will be recorded and posted to accounts.'
+        : 'Cancel this UNPAID booking? It will move to history (hidden from accounts).'
+    );
+    if (!ok) return;
+    await cancelBookingWithPolicy(voucherNo, type);
     await loadData();
-    toast.info(`Booking ${voucherNo} cancelled`);
+    toast.info(`Booking ${voucherNo} cancelled${wasPaid ? ' (refund split applied)' : ''}`);
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
@@ -979,6 +1017,32 @@ function AdminDashboard() {
               </CardContent>
             </Card>
 
+            <div className="flex justify-end">
+              <ExportButton
+                rows={filteredGroups as any[]}
+                getDate={(g: any) => g.created_at}
+                mapRow={(g: any) => ({
+                  voucher: g.voucherNo,
+                  company: g.companyName,
+                  email: g.contactEmail,
+                  phone: g.contactPhone,
+                  status: g.status,
+                  payment_method: g.payment_method ?? '',
+                  payment_reference: g.payment_reference ?? '',
+                  paid_at: g.paid_at ?? '',
+                  expires_at: g.expires_at ?? '',
+                  extended_once: g.extended_once ? 'yes' : 'no',
+                  cancellation_type: g.cancellation_type ?? '',
+                  cancellation_kept: g.cancellation_kept_amount ?? '',
+                  cancellation_refund: g.cancellation_refund_amount ?? '',
+                  grand_total: g.grandTotal,
+                  sites: g.bookings.length,
+                  created_at: g.created_at,
+                })}
+                filenamePrefix="bookings"
+                label="Export bookings"
+              />
+            </div>
             {filteredGroups.length === 0 ? (
               <div className="text-center py-24">
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4"><FileText className="h-8 w-8 text-muted-foreground/40" /></div>
@@ -1024,18 +1088,37 @@ function AdminDashboard() {
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider">Departure</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Nights</TableHead>
                                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">Amount</TableHead>
+                                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-right">Action</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {group.bookings.map((b: any) => (
                                     <TableRow key={b.id}>
-                                      <TableCell className="font-medium">{b.parkName}</TableCell>
+                                      <TableCell className="font-medium">
+                                        {b.parkName}
+                                        {b.original_site_id && (
+                                          <span className="block text-[10px] text-muted-foreground">
+                                            ↻ switched from {b.original_site_name}
+                                          </span>
+                                        )}
+                                      </TableCell>
                                       <TableCell>{b.siteName}</TableCell>
                                       {group.status === 'confirmed' && <TableCell className="font-mono text-xs text-muted-foreground">{b.siteVoucherNo || '—'}</TableCell>}
                                       <TableCell>{format(new Date(b.arrivalDate), 'dd MMM yyyy')}</TableCell>
                                       <TableCell>{format(new Date(b.departureDate), 'dd MMM yyyy')}</TableCell>
                                       <TableCell className="text-center">{b.nights}</TableCell>
                                       <TableCell className="text-right font-medium">P{b.totalAmount.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right">
+                                        {group.status !== 'cancelled' && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setSwitchTarget(b)}
+                                          >
+                                            Switch
+                                          </Button>
+                                        )}
+                                      </TableCell>
                                     </TableRow>
                                   ))}
                                 </TableBody>
@@ -1052,12 +1135,31 @@ function AdminDashboard() {
                                     <Button size="sm" variant="outline" onClick={() => openDocPreview(group, 'voucher')}>
                                       <FileCheck className="h-4 w-4 mr-1.5" /> Site Vouchers
                                     </Button>
+                                    {group.payment_method && (
+                                      <span className="text-xs px-2 py-1 rounded bg-success/10 text-success self-center">
+                                        Paid: {group.payment_method}{group.payment_reference ? ` (${group.payment_reference})` : ''}
+                                      </span>
+                                    )}
                                   </>
                                 )}
                                 {group.status === 'pending' && (
                                   <>
                                     <Button size="sm" className="bg-success hover:bg-success/90 text-success-foreground rounded-lg" onClick={() => handleConfirm(group.voucherNo)}>
                                       <CheckCircle className="h-4 w-4 mr-1.5" /> Confirm Payment
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setExtendTarget({
+                                        voucherNo: group.voucherNo,
+                                        companyName: group.companyName,
+                                        currentExpiry: group.expires_at,
+                                        alreadyExtended: !!group.extended_once,
+                                      })}
+                                      disabled={!!group.extended_once}
+                                      title={group.extended_once ? 'Already extended once' : 'Grant +7 day extension (one-time)'}
+                                    >
+                                      ⏱ {group.extended_once ? 'Extended' : 'Extend +7d'}
                                     </Button>
                                     <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/5 rounded-lg" onClick={() => handleCancel(group.voucherNo)}>
                                       <XCircle className="h-4 w-4 mr-1.5" /> Cancel
@@ -1283,6 +1385,36 @@ function AdminDashboard() {
           group={previewGroup}
           mode={previewMode}
           onClose={() => setPreviewGroup(null)}
+        />
+      )}
+
+      {confirmTarget && (
+        <ConfirmPaymentDialog
+          open
+          onOpenChange={(o) => { if (!o) setConfirmTarget(null); }}
+          voucherNo={confirmTarget.voucherNo}
+          companyName={confirmTarget.companyName}
+          amount={confirmTarget.amount}
+          onConfirmed={loadData}
+        />
+      )}
+      {extendTarget && (
+        <ExtendBookingDialog
+          open
+          onOpenChange={(o) => { if (!o) setExtendTarget(null); }}
+          voucherNo={extendTarget.voucherNo}
+          companyName={extendTarget.companyName}
+          currentExpiry={extendTarget.currentExpiry}
+          alreadyExtended={extendTarget.alreadyExtended}
+          onExtended={loadData}
+        />
+      )}
+      {switchTarget && (
+        <SwitchBookingDialog
+          open
+          onOpenChange={(o) => { if (!o) setSwitchTarget(null); }}
+          booking={switchTarget}
+          onSwitched={loadData}
         />
       )}
     </div>
