@@ -1,7 +1,11 @@
 // Posts confirmed+paid bookings to accounts at end of day (runs nightly via pg_cron at 00:00 UTC).
 // Stamps `posted_to_accounts_on` so the accountant view only sees them after midnight.
-import { corsHeaders } from '@supabase/supabase-js/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
