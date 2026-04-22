@@ -14,48 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
+      booking_audit_log: {
+        Row: {
+          action: string
+          booking_id: string | null
+          created_at: string
+          details: Json | null
+          group_id: string | null
+          id: string
+          performed_by: string | null
+          performed_by_email: string | null
+          voucher_no: string | null
+        }
+        Insert: {
+          action: string
+          booking_id?: string | null
+          created_at?: string
+          details?: Json | null
+          group_id?: string | null
+          id?: string
+          performed_by?: string | null
+          performed_by_email?: string | null
+          voucher_no?: string | null
+        }
+        Update: {
+          action?: string
+          booking_id?: string | null
+          created_at?: string
+          details?: Json | null
+          group_id?: string | null
+          id?: string
+          performed_by?: string | null
+          performed_by_email?: string | null
+          voucher_no?: string | null
+        }
+        Relationships: []
+      }
       booking_groups: {
         Row: {
           booker_type: string
+          cancellation_kept_amount: number | null
+          cancellation_refund_amount: number | null
+          cancellation_type: string | null
+          cancelled_at: string | null
           company_name: string
+          confirmed_by: string | null
           contact_email: string
           contact_phone: string
           created_at: string
+          edited_at: string | null
+          edited_by: string | null
           expires_at: string | null
           expiry_warning_sent: boolean
+          extended_once: boolean
           grand_total: number
           id: string
           member_id: string | null
+          original_expires_at: string | null
+          paid_at: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          posted_to_accounts_on: string | null
           status: Database["public"]["Enums"]["booking_status"]
           updated_at: string
           voucher_no: string
         }
         Insert: {
           booker_type?: string
+          cancellation_kept_amount?: number | null
+          cancellation_refund_amount?: number | null
+          cancellation_type?: string | null
+          cancelled_at?: string | null
           company_name: string
+          confirmed_by?: string | null
           contact_email: string
           contact_phone: string
           created_at?: string
+          edited_at?: string | null
+          edited_by?: string | null
           expires_at?: string | null
           expiry_warning_sent?: boolean
+          extended_once?: boolean
           grand_total?: number
           id?: string
           member_id?: string | null
+          original_expires_at?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          posted_to_accounts_on?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
           voucher_no: string
         }
         Update: {
           booker_type?: string
+          cancellation_kept_amount?: number | null
+          cancellation_refund_amount?: number | null
+          cancellation_type?: string | null
+          cancelled_at?: string | null
           company_name?: string
+          confirmed_by?: string | null
           contact_email?: string
           contact_phone?: string
           created_at?: string
+          edited_at?: string | null
+          edited_by?: string | null
           expires_at?: string | null
           expiry_warning_sent?: boolean
+          extended_once?: boolean
           grand_total?: number
           id?: string
           member_id?: string | null
+          original_expires_at?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          posted_to_accounts_on?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
           voucher_no?: string
@@ -71,12 +146,18 @@ export type Database = {
           contact_phone: string
           created_at: string
           departure_date: string
+          edited_at: string | null
+          edited_by: string | null
           group_id: string
           guest_count: number | null
           id: string
           id_number: string | null
           nationality: string | null
           nights: number
+          original_arrival_date: string | null
+          original_departure_date: string | null
+          original_site_id: string | null
+          original_site_name: string | null
           park_id: string
           park_name: string
           per_person_rate: number | null
@@ -85,6 +166,8 @@ export type Database = {
           site_name: string
           site_voucher_no: string | null
           status: Database["public"]["Enums"]["booking_status"]
+          switched_at: string | null
+          switched_by: string | null
           total_amount: number
           voucher_no: string
         }
@@ -96,12 +179,18 @@ export type Database = {
           contact_phone: string
           created_at?: string
           departure_date: string
+          edited_at?: string | null
+          edited_by?: string | null
           group_id: string
           guest_count?: number | null
           id?: string
           id_number?: string | null
           nationality?: string | null
           nights: number
+          original_arrival_date?: string | null
+          original_departure_date?: string | null
+          original_site_id?: string | null
+          original_site_name?: string | null
           park_id: string
           park_name: string
           per_person_rate?: number | null
@@ -110,6 +199,8 @@ export type Database = {
           site_name: string
           site_voucher_no?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
+          switched_at?: string | null
+          switched_by?: string | null
           total_amount: number
           voucher_no: string
         }
@@ -121,12 +212,18 @@ export type Database = {
           contact_phone?: string
           created_at?: string
           departure_date?: string
+          edited_at?: string | null
+          edited_by?: string | null
           group_id?: string
           guest_count?: number | null
           id?: string
           id_number?: string | null
           nationality?: string | null
           nights?: number
+          original_arrival_date?: string | null
+          original_departure_date?: string | null
+          original_site_id?: string | null
+          original_site_name?: string | null
           park_id?: string
           park_name?: string
           per_person_rate?: number | null
@@ -135,6 +232,8 @@ export type Database = {
           site_name?: string
           site_voucher_no?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
+          switched_at?: string | null
+          switched_by?: string | null
           total_amount?: number
           voucher_no?: string
         }
@@ -244,6 +343,78 @@ export type Database = {
         }
         Relationships: []
       }
+      site_blackouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          park_id: string
+          reason: string | null
+          site_id: string
+          site_name: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          park_id: string
+          reason?: string | null
+          site_id: string
+          site_name: string
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          park_id?: string
+          reason?: string | null
+          site_id?: string
+          site_name?: string
+          start_date?: string
+        }
+        Relationships: []
+      }
+      staff_invitations: {
+        Row: {
+          activated: boolean
+          activated_at: string | null
+          email: string
+          id: string
+          invited_at: string
+          invited_by: string | null
+          revoked: boolean
+          revoked_at: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          activated?: boolean
+          activated_at?: string | null
+          email: string
+          id?: string
+          invited_at?: string
+          invited_by?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          activated?: boolean
+          activated_at?: string | null
+          email?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -340,7 +511,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user" | "accountant"
+      app_role: "admin" | "user" | "accountant" | "manager"
       booking_status: "pending" | "confirmed" | "cancelled"
     }
     CompositeTypes: {
@@ -469,7 +640,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "accountant"],
+      app_role: ["admin", "user", "accountant", "manager"],
       booking_status: ["pending", "confirmed", "cancelled"],
     },
   },

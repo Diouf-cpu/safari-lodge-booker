@@ -9,7 +9,9 @@ import bogaLogo from '@/assets/boga-logo.png';
 import { parks } from '@/data/parks';
 
 const parkImages: Record<string, string> = { moremi: moremiImg, chobe: chobeImg, kalahari: kalahariImg };
-const featuredParks = parks.slice(0, 6);
+// Public homepage hides the BOGA Reserve Camp — that one is staff-managed only.
+const publicParks = parks.filter(p => p.id !== 'boga-reserve');
+const featuredParks = publicParks.slice(0, 6);
 
 export default function Index() {
   return (
@@ -32,17 +34,17 @@ export default function Index() {
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-up" style={{ animationDelay: '0.45s' }}>
               <Button asChild size="lg" className="amber-glow text-accent-foreground font-semibold px-8 py-6 text-base border-0 rounded-xl hover:opacity-90 transition-opacity">
                 <Link to="/book">
-                  Wildlife Reserves (Members) <ArrowRight className="ml-2 h-5 w-5" />
+                  Book Wildlife Reserves <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="border-secondary/40 bg-secondary/10 text-primary-foreground hover:bg-secondary/20 font-semibold px-8 py-6 text-base rounded-xl">
-                <Link to="/book?type=boga-reserve">
-                  BOGA Reserve Camp · Maun (Individuals)
+                <Link to="/availability">
+                  Check Availability
                 </Link>
               </Button>
             </div>
             <p className="text-xs text-primary-foreground/50 mt-3 max-w-md">
-              Wilderness sites are reserved by registered safari companies. The BOGA Reserve in Maun is open to individual guests, charged per person per night.
+              For registered safari companies and BOGA members. To book the BOGA Reserve Camp in Maun, please call the reservation desk.
             </p>
           </div>
         </div>

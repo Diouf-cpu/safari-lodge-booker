@@ -12,12 +12,11 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight, AlertCircle, Tent } from 'lucide-react';
+import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight, AlertCircle } from 'lucide-react';
 import { differenceInDays, format, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InvoicePreview } from '@/components/InvoicePreview';
 import { WaitlistDialog } from '@/components/WaitlistDialog';
-import { BogaReserveBookingForm } from '@/components/reservation/ReservationPanels';
 
 interface BookingItem {
   parkId: string;
@@ -97,7 +96,8 @@ const wildernessParks = parks.filter(p => p.id !== 'boga-reserve');
 export default function BookPage() {
   const [searchParams] = useSearchParams();
   const preselectedPark = searchParams.get('park') || '';
-  const bookingType = searchParams.get('type') === 'boga-reserve' ? 'boga-reserve' : 'wilderness';
+  // BOGA Reserve is staff-managed only — the public site always shows the wilderness flow.
+  const bookingType: 'wilderness' = 'wilderness';
 
   const [companies, setCompanies] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -244,21 +244,8 @@ export default function BookPage() {
     );
   }
 
-  // BOGA Reserve mode — individuals only, per-person pricing
-  if (bookingType === 'boga-reserve') {
-    return (
-      <div className="min-h-screen pt-24 pb-16 bg-background">
-        <div className="container mx-auto px-4 max-w-3xl">
-          <div className="mb-8">
-            <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2 flex items-center gap-2"><Tent className="h-4 w-4" /> BOGA Reserve · Maun</p>
-            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Book the BOGA Reserve Camp</h1>
-            <p className="text-muted-foreground">Individual booking — charged per person, per night. For wildlife park bookings (members & companies), <a href="/book" className="text-secondary underline">click here</a>.</p>
-          </div>
-          <BogaReserveBookingForm onBooked={() => { window.location.href = '/book?type=boga-reserve'; }} />
-        </div>
-      </div>
-    );
-  }
+  // BOGA Reserve flow has been moved to the staff-only Reservation Dashboard.
+
 
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
@@ -266,7 +253,7 @@ export default function BookPage() {
         <div className="mb-10">
           <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">New Booking</p>
           <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Book Wildlife Reserve Sites</h1>
-          <p className="text-muted-foreground">For registered safari companies and BOGA members. <strong>P{RATE_PER_NIGHT}/night</strong> per site. Looking for the BOGA Reserve Camp in Maun? <a href="/book?type=boga-reserve" className="text-secondary underline">Book individually here</a>.</p>
+          <p className="text-muted-foreground">For registered safari companies and BOGA members. <strong>P{RATE_PER_NIGHT}/night</strong> per site. To book the BOGA Reserve Camp in Maun, please call the reservation desk.</p>
         </div>
 
         <Card className="mb-6 border-0 shadow-md">

@@ -142,18 +142,47 @@ export async function isDateRangeAvailable(
 }
 
 export async function getBookedDatesForSite(siteId: string) {
-  const { data } = await supabase
-    .from('bookings')
-    .select('arrival_date, departure_date, company_name, status')
-    .eq('site_id', siteId)
-    .neq('status', 'cancelled');
+  const [bookingsRes, blackoutsRes] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('arrival_date, departure_date, company_name, status')
+      .eq('site_id', siteId)
+      .neq('status', 'cancelled'),
+    supabase
+      .from('site_blackouts')
+      .select('start_date, end_date, reason')
+      .eq('site_id', siteId),
+  ]);
 
-  return (data || []).map(b => ({
+  const bookings = (bookingsRes.data || []).map(b => ({
     start: b.arrival_date,
     end: b.departure_date,
     company: b.company_name,
-    status: b.status,
+    status: b.status as 'pending' | 'confirmed',
   }));
+
+  const blackouts = (blackoutsRes.data || []).map(b => ({
+    start: b.start_date,
+    end: b.end_date,
+    company: b.reason || 'Unavailable',
+    status: 'blackout' as const,
+  }));
+
+  return [...bookings, ...blackouts];
+}
+
+// Returns all blackout windows that overlap the given range, used to hide unavailable sites on the public booking page.
+export async function isSiteBlackedOut(siteId: string, arrival: string, departure: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('site_blackouts')
+    .select('start_date, end_date')
+    .eq('site_id', siteId);
+  if (!data) return false;
+  const a = new Date(arrival), d = new Date(departure);
+  return data.some(b => {
+    const bs = new Date(b.start_date), be = new Date(b.end_date);
+    return a <= be && d >= bs;
+  });
 }
 
 export async function getGroupedBookings() {
