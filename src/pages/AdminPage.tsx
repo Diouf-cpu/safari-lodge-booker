@@ -28,7 +28,7 @@ import { InvoicePreview } from '@/components/InvoicePreview';
 import { cn } from '@/lib/utils';
 import bogaLogo from '@/assets/boga-logo.png';
 
-function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => void }) {
+function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant' | 'manager') => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -41,17 +41,16 @@ function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => vo
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
 
-    // Check for admin or accountant role
+    // Check role precedence: admin > manager > accountant
     const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', data.user.id);
     const roleList = (roles || []).map(r => r.role);
 
-    if (roleList.includes('admin')) {
-      onLogin('admin');
-    } else if (roleList.includes('accountant')) {
-      onLogin('accountant');
-    } else {
+    if (roleList.includes('admin')) onLogin('admin');
+    else if (roleList.includes('manager')) onLogin('manager');
+    else if (roleList.includes('accountant')) onLogin('accountant');
+    else {
       await supabase.auth.signOut();
-      setError('You do not have admin or accountant access.');
+      setError('You do not have admin, manager, or accountant access.');
     }
     setLoading(false);
   };
