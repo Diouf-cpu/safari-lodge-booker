@@ -278,7 +278,7 @@ export default function BookPage() {
                 <Select value={companyName} onValueChange={setCompanyName}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select company" /></SelectTrigger>
                   <SelectContent>
-                    {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {companies.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                     <SelectItem value="__other__">✚ Other company...</SelectItem>
                   </SelectContent>
                 </Select>
@@ -298,6 +298,47 @@ export default function BookPage() {
                 <Input className="mt-1.5" type="tel" placeholder="+267 ..." value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
               </div>
             </div>
+
+            {passwordGateApplies && (
+              <div className="mt-5 pt-5 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  Company booking password
+                  {passwordOk === true && <span className="text-success">✓ verified</span>}
+                  {passwordOk === false && <span className="text-destructive">✕ wrong password</span>}
+                </Label>
+                <div className="flex gap-2 mt-1.5 max-w-md">
+                  <Input
+                    type="password"
+                    placeholder="Enter your company's private password"
+                    value={companyPassword}
+                    onChange={e => { setCompanyPassword(e.target.value); setPasswordOk(null); }}
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={!companyPassword || verifyingPw}
+                    onClick={async () => {
+                      if (!selectedCompany) return;
+                      setVerifyingPw(true);
+                      try {
+                        const ok = await verifyCompanyPassword(selectedCompany.id, companyPassword);
+                        setPasswordOk(ok);
+                        if (ok) toast.success('Password verified');
+                        else toast.error('Wrong password — please contact BOGA reservations');
+                      } catch (e: any) {
+                        toast.error(e.message || 'Verification failed');
+                      } finally {
+                        setVerifyingPw(false);
+                      }
+                    }}
+                  >
+                    {verifyingPw ? 'Checking…' : 'Verify'}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  Each safari company has a private password issued by BOGA reservations. Required to prevent unauthorised bookings.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
