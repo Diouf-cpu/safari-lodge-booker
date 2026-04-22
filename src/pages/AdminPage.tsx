@@ -998,6 +998,32 @@ function AdminDashboard() {
               </CardContent>
             </Card>
 
+            <div className="flex justify-end">
+              <ExportButton
+                rows={filteredGroups as any[]}
+                getDate={(g: any) => g.created_at}
+                mapRow={(g: any) => ({
+                  voucher: g.voucherNo,
+                  company: g.companyName,
+                  email: g.contactEmail,
+                  phone: g.contactPhone,
+                  status: g.status,
+                  payment_method: g.payment_method ?? '',
+                  payment_reference: g.payment_reference ?? '',
+                  paid_at: g.paid_at ?? '',
+                  expires_at: g.expires_at ?? '',
+                  extended_once: g.extended_once ? 'yes' : 'no',
+                  cancellation_type: g.cancellation_type ?? '',
+                  cancellation_kept: g.cancellation_kept_amount ?? '',
+                  cancellation_refund: g.cancellation_refund_amount ?? '',
+                  grand_total: g.grandTotal,
+                  sites: g.bookings.length,
+                  created_at: g.created_at,
+                })}
+                filenamePrefix="bookings"
+                label="Export bookings"
+              />
+            </div>
             {filteredGroups.length === 0 ? (
               <div className="text-center py-24">
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4"><FileText className="h-8 w-8 text-muted-foreground/40" /></div>
@@ -1340,6 +1366,36 @@ function AdminDashboard() {
           group={previewGroup}
           mode={previewMode}
           onClose={() => setPreviewGroup(null)}
+        />
+      )}
+
+      {confirmTarget && (
+        <ConfirmPaymentDialog
+          open
+          onOpenChange={(o) => { if (!o) setConfirmTarget(null); }}
+          voucherNo={confirmTarget.voucherNo}
+          companyName={confirmTarget.companyName}
+          amount={confirmTarget.amount}
+          onConfirmed={loadData}
+        />
+      )}
+      {extendTarget && (
+        <ExtendBookingDialog
+          open
+          onOpenChange={(o) => { if (!o) setExtendTarget(null); }}
+          voucherNo={extendTarget.voucherNo}
+          companyName={extendTarget.companyName}
+          currentExpiry={extendTarget.currentExpiry}
+          alreadyExtended={extendTarget.alreadyExtended}
+          onExtended={loadData}
+        />
+      )}
+      {switchTarget && (
+        <SwitchBookingDialog
+          open
+          onOpenChange={(o) => { if (!o) setSwitchTarget(null); }}
+          booking={switchTarget}
+          onSwitched={loadData}
         />
       )}
     </div>
