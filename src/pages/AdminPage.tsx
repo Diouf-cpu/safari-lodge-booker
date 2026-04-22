@@ -53,8 +53,8 @@ function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => vo
       <Card className="w-full max-w-sm border-0 shadow-xl">
         <CardContent className="pt-10 pb-8 px-8">
           <img src={bogaLogo} alt="BOGA" className="h-16 w-16 object-contain mx-auto mb-4" />
-          <h1 className="font-display text-2xl font-bold text-center mb-1">Staff Access</h1>
-          <p className="text-sm text-muted-foreground text-center mb-6">Sign in with your staff account</p>
+          <h1 className="font-display text-2xl font-bold text-center mb-1">Reservation Access</h1>
+          <p className="text-sm text-muted-foreground text-center mb-6">Sign in to the reservation desk</p>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email</Label>
@@ -697,7 +697,7 @@ function AdminDashboard() {
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [siteStats, setSiteStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('bookings');
+  const [activeTab, setActiveTab] = useState('notifications');
   const [showBookClient, setShowBookClient] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const [siteSearch, setSiteSearch] = useState('');
@@ -860,26 +860,26 @@ function AdminDashboard() {
       <div className="container mx-auto px-4">
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Administration</p>
-            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Booking Dashboard</h1>
-            <p className="text-muted-foreground">Manage bookings, companies, analytics, and history.</p>
+            <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">Reservation Desk</p>
+            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Reservation Dashboard</h1>
+            <p className="text-muted-foreground">Manage bookings, members, waitlist, notifications and analytics.</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleLogout} className="mt-2"><LogOut className="h-4 w-4 mr-1.5" /> Sign Out</Button>
         </div>
 
-        {/* Book for Client - prominent toggle at top */}
+        {/* Book BOGA Reserve - prominent toggle at top */}
         <div className="mb-8">
           <Button
             onClick={() => setShowBookClient(!showBookClient)}
             className="amber-glow text-accent-foreground border-0 font-semibold px-6 py-3 text-base"
             size="lg"
           >
-            <UserPlus className="h-5 w-5 mr-2" />
-            {showBookClient ? 'Close Booking Form' : 'Book for Client — BOGA Reserve'}
+            <Tent className="h-5 w-5 mr-2" />
+            {showBookClient ? 'Close BOGA Reserve form' : 'Book BOGA Reserve Camp (individuals)'}
           </Button>
           {showBookClient && (
             <div className="mt-4">
-              <AdminBookForClient onBooked={() => { loadData(); setShowBookClient(false); }} />
+              <BogaReserveBookingForm onBooked={() => { loadData(); setShowBookClient(false); }} />
             </div>
           )}
         </div>
@@ -929,13 +929,20 @@ function AdminDashboard() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-4xl">
+          <TabsList className="flex flex-wrap h-auto gap-1 w-full">
+            <TabsTrigger value="notifications"><BellRing className="h-3.5 w-3.5 mr-1.5" />Notifications</TabsTrigger>
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="waitlist">Waitlist</TabsTrigger>
+            <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="companies">Companies</TabsTrigger>
             <TabsTrigger value="manage-companies">Manage List</TabsTrigger>
             <TabsTrigger value="sites">Sites</TabsTrigger>
             <TabsTrigger value="vouchers">Voucher Lookup</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="notifications"><NotificationsPanel /></TabsContent>
+          <TabsContent value="waitlist"><WaitlistPanel /></TabsContent>
+          <TabsContent value="members"><MembersPanel /></TabsContent>
 
           {/* BOOKINGS TAB */}
           <TabsContent value="bookings" className="space-y-6">
