@@ -1,0 +1,1 @@
+ALTER TABLE public.booking_groups ALTER COLUMN expires_at SET DEFAULT (now() + interval '14 days');
