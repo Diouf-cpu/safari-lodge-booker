@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { WaitlistDialog } from '@/components/WaitlistDialog';
 import { MapPin, CalendarDays, ChevronLeft, ChevronRight, TrendingUp, BarChart3 } from 'lucide-react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, parseISO } from 'date-fns';
 
@@ -37,10 +39,10 @@ export default function AvailabilityPage() {
       const start = parseISO(range.start);
       const end = parseISO(range.end);
       if (isWithinInterval(date, { start, end: new Date(end.getTime() - 1) })) {
-        return { booked: true, company: range.company, status: range.status };
+        return { booked: true, company: range.company, status: range.status, rangeStart: range.start, rangeEnd: range.end };
       }
     }
-    return { booked: false, company: '', status: '' };
+    return { booked: false, company: '', status: '', rangeStart: '', rangeEnd: '' };
   };
 
   const mostBooked = siteStats.slice(0, 5);
@@ -154,17 +156,41 @@ export default function AvailabilityPage() {
               <div className="grid grid-cols-7 gap-1.5">
                 {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`e-${i}`} />)}
                 {daysInMonth.map(day => {
-                  const { booked, company, status } = getDateStatus(day);
+                  const { booked, company, status, rangeStart, rangeEnd } = getDateStatus(day);
+                  const cellClass = `relative rounded-xl p-2 text-center min-h-[64px] flex flex-col items-center justify-start transition-colors ${
+                    booked
+                      ? status === 'confirmed'
+                        ? 'bg-destructive/10 border border-destructive/20 cursor-pointer hover:bg-destructive/20'
+                        : 'bg-warning/10 border border-warning/20 cursor-pointer hover:bg-warning/20'
+                      : 'bg-success/5 border border-success/10 hover:bg-success/10'
+                  }`;
+                  if (booked && site && park) {
+                    return (
+                      <Popover key={day.toISOString()}>
+                        <PopoverTrigger asChild>
+                          <div className={cellClass}>
+                            <span className="text-sm font-medium">{format(day, 'd')}</span>
+                            <span className="text-[9px] leading-tight text-muted-foreground mt-1 truncate w-full px-0.5">{company}</span>
+                          </div>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72">
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Booked by</p>
+                          <p className="font-semibold mb-2">{company}</p>
+                          <p className="text-xs text-muted-foreground mb-3">{rangeStart} → {rangeEnd} · <span className="capitalize">{status}</span></p>
+                          <p className="text-xs text-muted-foreground mb-3">If this booking is cancelled, the next person on the waitlist gets first refusal. You can also request to share the site (split cost).</p>
+                          <WaitlistDialog
+                            siteId={site.id} siteName={site.name}
+                            parkId={park.id} parkName={park.name}
+                            arrivalDate={rangeStart} departureDate={rangeEnd}
+                            trigger={<button className="w-full text-sm font-semibold rounded-lg amber-glow text-accent-foreground py-2">Join waitlist / Share request</button>}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  }
                   return (
-                    <div key={day.toISOString()} className={`relative rounded-xl p-2 text-center min-h-[64px] flex flex-col items-center justify-start transition-colors ${
-                      booked
-                        ? status === 'confirmed'
-                          ? 'bg-destructive/10 border border-destructive/20'
-                          : 'bg-warning/10 border border-warning/20'
-                        : 'bg-success/5 border border-success/10 hover:bg-success/10'
-                    }`}>
+                    <div key={day.toISOString()} className={cellClass}>
                       <span className="text-sm font-medium">{format(day, 'd')}</span>
-                      {booked && <span className="text-[9px] leading-tight text-muted-foreground mt-1 truncate w-full px-0.5">{company}</span>}
                     </div>
                   );
                 })}
