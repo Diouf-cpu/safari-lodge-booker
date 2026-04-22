@@ -1460,26 +1460,3 @@ export default function AdminPage() {
   if (role === 'manager') return <AccountantDashboard />;
   return <AdminDashboard />;
 }
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
-        const roleList = (roles || []).map(r => r.role);
-        if (roleList.includes('admin')) setRole('admin');
-        else if (roleList.includes('accountant')) setRole('accountant');
-      }
-      setChecking(false);
-    };
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { checkSession(); });
-    checkSession();
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (checking) return <div className="min-h-screen flex items-center justify-center bg-background"><p className="text-muted-foreground">Checking access...</p></div>;
-  if (!role) return <AdminLogin onLogin={(r) => setRole(r)} />;
-  if (role === 'accountant') return <AccountantDashboard />;
-  return <AdminDashboard />;
-}
