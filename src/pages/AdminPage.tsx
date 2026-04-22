@@ -196,6 +196,25 @@ function AccountantDashboard() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            <ExportButton
+              rows={filteredGroups as any[]}
+              getDate={(g: any) => g.created_at}
+              mapRow={(g: any) => ({
+                voucher: g.voucher_no,
+                company: g.company_name,
+                status: g.status,
+                payment_method: g.payment_method ?? '',
+                payment_reference: g.payment_reference ?? '',
+                paid_at: g.paid_at ?? '',
+                cancellation_type: g.cancellation_type ?? '',
+                cancellation_kept: g.cancellation_kept_amount ?? '',
+                cancellation_refund: g.cancellation_refund_amount ?? '',
+                grand_total: g.grand_total,
+                created_at: g.created_at,
+              })}
+              filenamePrefix="accountant_transactions"
+              label="Export"
+            />
           </CardContent>
         </Card>
 
