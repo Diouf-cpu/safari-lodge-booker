@@ -244,13 +244,29 @@ export default function BookPage() {
     );
   }
 
+  // BOGA Reserve mode — individuals only, per-person pricing
+  if (bookingType === 'boga-reserve') {
+    return (
+      <div className="min-h-screen pt-24 pb-16 bg-background">
+        <div className="container mx-auto px-4 max-w-3xl">
+          <div className="mb-8">
+            <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2 flex items-center gap-2"><Tent className="h-4 w-4" /> BOGA Reserve · Maun</p>
+            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Book the BOGA Reserve Camp</h1>
+            <p className="text-muted-foreground">Individual booking — charged per person, per night. For wildlife park bookings (members & companies), <a href="/book" className="text-secondary underline">click here</a>.</p>
+          </div>
+          <BogaReserveBookingForm onBooked={() => { window.location.href = '/book?type=boga-reserve'; }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pt-24 pb-16 bg-background">
       <div className="container mx-auto px-4 max-w-4xl">
         <div className="mb-10">
           <p className="text-secondary font-display font-semibold text-sm uppercase tracking-[0.2em] mb-2">New Booking</p>
-          <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Book Safari Campsites</h1>
-          <p className="text-muted-foreground">Select your destinations, choose dates, and get an instant quote. <strong>P{RATE_PER_NIGHT}/night</strong> per site.</p>
+          <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Book Wildlife Reserve Sites</h1>
+          <p className="text-muted-foreground">For registered safari companies and BOGA members. <strong>P{RATE_PER_NIGHT}/night</strong> per site. Looking for the BOGA Reserve Camp in Maun? <a href="/book?type=boga-reserve" className="text-secondary underline">Book individually here</a>.</p>
         </div>
 
         <Card className="mb-6 border-0 shadow-md">
@@ -273,6 +289,9 @@ export default function BookPage() {
               <div>
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email</Label>
                 <Input className="mt-1.5" type="email" placeholder="contact@company.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
+                {memberCheck?.status === 'active' && <p className="text-xs text-success mt-1">✓ Active member: {memberCheck.name}</p>}
+                {memberCheck?.status === 'expiring_soon' && <p className="text-xs text-warning mt-1">⚠ Member subscription expiring soon ({memberCheck.name})</p>}
+                {memberCheck?.status === 'expired' && <p className="text-xs text-destructive mt-1">✕ Member subscription expired. Bookings disabled until renewed.</p>}
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Phone</Label>
@@ -308,7 +327,7 @@ export default function BookPage() {
                       <Label className="text-xs text-muted-foreground">Park / Reserve</Label>
                       <Select value={item.parkId} onValueChange={v => updateItem(index, 'parkId', v)}>
                         <SelectTrigger className="mt-1"><SelectValue placeholder="Select park" /></SelectTrigger>
-                        <SelectContent>{parks.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{wildernessParks.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div>
@@ -324,13 +343,22 @@ export default function BookPage() {
                       minDate={arrivalDate ? new Date(arrivalDate.getTime() + 86400000) : undefined} />
                   </div>
                   {(detail.nights > 0 || detail.available !== null) && (
-                    <div className="mt-3 flex items-center justify-between pt-3 border-t">
-                      <div className="flex items-center gap-2 text-sm">
+                    <div className="mt-3 flex items-center justify-between pt-3 border-t flex-wrap gap-2">
+                      <div className="flex items-center gap-2 text-sm flex-wrap">
                         {detail.nights > 0 && <span className="text-muted-foreground">{detail.nights} night{detail.nights > 1 ? 's' : ''} × P{RATE_PER_NIGHT}</span>}
                         {detail.available === false && <Badge variant="destructive" className="text-xs">Unavailable</Badge>}
                         {detail.available === true && <Badge className="bg-success text-success-foreground text-xs">Available ✓</Badge>}
                       </div>
-                      {detail.total > 0 && <span className="font-display font-bold text-lg">P{detail.total.toLocaleString()}</span>}
+                      <div className="flex items-center gap-2">
+                        {detail.available === false && park && site && item.arrivalDate && item.departureDate && (
+                          <WaitlistDialog
+                            siteId={item.siteId} siteName={site.name}
+                            parkId={park.id} parkName={park.name}
+                            arrivalDate={item.arrivalDate} departureDate={item.departureDate}
+                          />
+                        )}
+                        {detail.total > 0 && <span className="font-display font-bold text-lg">P{detail.total.toLocaleString()}</span>}
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -343,6 +371,16 @@ export default function BookPage() {
           <Plus className="h-4 w-4 mr-2" /> Add Another Site
         </Button>
 
+        {memberBlocked && (
+          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-destructive">Membership expired</p>
+              <p className="text-muted-foreground">Your annual subscription has lapsed. You can prepare a booking but won't be able to confirm until you renew. Please contact BOGA reservations.</p>
+            </div>
+          </div>
+        )}
+
         <Card className="border-0 shadow-xl bg-card">
           <CardContent className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
@@ -350,8 +388,8 @@ export default function BookPage() {
               <p className="text-4xl font-display font-extrabold">P{grandTotal.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">{items.length} site{items.length > 1 ? 's' : ''} • {itemDetails.reduce((s, d) => s + d.nights, 0)} nights</p>
             </div>
-            <Button size="lg" className="amber-glow text-accent-foreground border-0 px-10 py-6 rounded-xl font-semibold" disabled={!allValid} onClick={() => setShowInvoice(true)}>
-              Review Voucher <ArrowRight className="ml-2 h-5 w-5" />
+            <Button size="lg" className="amber-glow text-accent-foreground border-0 px-10 py-6 rounded-xl font-semibold" disabled={!allValid || memberBlocked} onClick={() => setShowInvoice(true)}>
+              {memberBlocked ? 'Renewal required' : <>Review Voucher <ArrowRight className="ml-2 h-5 w-5" /></>}
             </Button>
           </CardContent>
         </Card>
