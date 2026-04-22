@@ -12,13 +12,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, CalendarIcon, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck, UserPlus, BellRing, Tent } from 'lucide-react';
+import { Search, CheckCircle, XCircle, FileText, MapPin, CalendarDays, CalendarIcon, Users, DollarSign, ChevronDown, ChevronUp, Lock, LogOut, TrendingUp, Building2, BarChart3, Trash2, Plus, Receipt, FileCheck, UserPlus, BellRing, Tent, Ban, UserCog, Eye } from 'lucide-react';
 import { NotificationsPanel, MembersPanel, WaitlistPanel, BogaReserveBookingForm } from '@/components/reservation/ReservationPanels';
 import { CompanyPasswordManager } from '@/components/reservation/CompanyPasswordManager';
 import { ConfirmPaymentDialog } from '@/components/reservation/ConfirmPaymentDialog';
 import { ExtendBookingDialog } from '@/components/reservation/ExtendBookingDialog';
 import { SwitchBookingDialog } from '@/components/reservation/SwitchBookingDialog';
 import { ExportButton } from '@/components/reservation/ExportButton';
+import { SiteBlackoutsPanel } from '@/components/reservation/SiteBlackoutsPanel';
+import { StaffInvitationsPanel } from '@/components/reservation/StaffInvitationsPanel';
 import { cancelBookingWithPolicy } from '@/store/operationsStore';
 import { format, differenceInDays, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
@@ -26,7 +28,7 @@ import { InvoicePreview } from '@/components/InvoicePreview';
 import { cn } from '@/lib/utils';
 import bogaLogo from '@/assets/boga-logo.png';
 
-function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => void }) {
+function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant' | 'manager') => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -39,17 +41,16 @@ function AdminLogin({ onLogin }: { onLogin: (role: 'admin' | 'accountant') => vo
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
 
-    // Check for admin or accountant role
+    // Check role precedence: admin > manager > accountant
     const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', data.user.id);
     const roleList = (roles || []).map(r => r.role);
 
-    if (roleList.includes('admin')) {
-      onLogin('admin');
-    } else if (roleList.includes('accountant')) {
-      onLogin('accountant');
-    } else {
+    if (roleList.includes('admin')) onLogin('admin');
+    else if (roleList.includes('manager')) onLogin('manager');
+    else if (roleList.includes('accountant')) onLogin('accountant');
+    else {
       await supabase.auth.signOut();
-      setError('You do not have admin or accountant access.');
+      setError('You do not have admin, manager, or accountant access.');
     }
     setLoading(false);
   };
@@ -976,6 +977,8 @@ function AdminDashboard() {
             <TabsTrigger value="companies">Companies</TabsTrigger>
             <TabsTrigger value="manage-companies">Manage List</TabsTrigger>
             <TabsTrigger value="sites">Sites</TabsTrigger>
+            <TabsTrigger value="blackouts"><Ban className="h-3.5 w-3.5 mr-1.5" />Blackouts</TabsTrigger>
+            <TabsTrigger value="staff"><UserCog className="h-3.5 w-3.5 mr-1.5" />Team</TabsTrigger>
             <TabsTrigger value="vouchers">Voucher Lookup</TabsTrigger>
           </TabsList>
 
@@ -1316,7 +1319,16 @@ function AdminDashboard() {
             </div>
           </TabsContent>
 
-          {/* VOUCHER LOOKUP TAB */}
+          {/* BLACKOUTS TAB */}
+          <TabsContent value="blackouts" className="space-y-6">
+            <SiteBlackoutsPanel />
+          </TabsContent>
+
+          {/* STAFF TAB */}
+          <TabsContent value="staff" className="space-y-6">
+            <StaffInvitationsPanel />
+          </TabsContent>
+
           <TabsContent value="vouchers" className="space-y-6">
             <Card className="border-0 shadow-md">
               <CardContent className="pt-5 pb-4">
@@ -1422,7 +1434,7 @@ function AdminDashboard() {
 }
 
 export default function AdminPage() {
-  const [role, setRole] = useState<'admin' | 'accountant' | null>(null);
+  const [role, setRole] = useState<'admin' | 'accountant' | 'manager' | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -1432,6 +1444,7 @@ export default function AdminPage() {
         const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
         const roleList = (roles || []).map(r => r.role);
         if (roleList.includes('admin')) setRole('admin');
+        else if (roleList.includes('manager')) setRole('manager');
         else if (roleList.includes('accountant')) setRole('accountant');
       }
       setChecking(false);
@@ -1444,5 +1457,6 @@ export default function AdminPage() {
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-background"><p className="text-muted-foreground">Checking access...</p></div>;
   if (!role) return <AdminLogin onLogin={(r) => setRole(r)} />;
   if (role === 'accountant') return <AccountantDashboard />;
+  if (role === 'manager') return <AccountantDashboard />;
   return <AdminDashboard />;
 }
