@@ -108,6 +108,14 @@ function AccountantDashboard() {
 
   const filteredGroups = useMemo(() => {
     return allGroups.filter(g => {
+      // Accountant rules:
+      // - Hide unpaid auto-cancellations entirely (they never went through finance)
+      // - Only show confirmed+paid groups that have been posted to accounts (nightly cron stamps posted_to_accounts_on)
+      // - Paid-refund cancellations are kept (they affect accounts)
+      if (g.cancellation_type === 'unpaid_auto') return false;
+      if (g.status === 'pending') return false;
+      if (g.status === 'confirmed' && !g.posted_to_accounts_on) return false;
+
       const created = g.created_at?.slice(0, 10) || '';
       const inRange = created >= dateFrom && created <= dateTo;
       const matchesSearch = !search ||
