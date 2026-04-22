@@ -978,6 +978,8 @@ function AdminDashboard() {
             <TabsTrigger value="companies">Companies</TabsTrigger>
             <TabsTrigger value="manage-companies">Manage List</TabsTrigger>
             <TabsTrigger value="sites">Sites</TabsTrigger>
+            <TabsTrigger value="blackouts"><Ban className="h-3.5 w-3.5 mr-1.5" />Blackouts</TabsTrigger>
+            <TabsTrigger value="staff"><UserCog className="h-3.5 w-3.5 mr-1.5" />Team</TabsTrigger>
             <TabsTrigger value="vouchers">Voucher Lookup</TabsTrigger>
           </TabsList>
 
