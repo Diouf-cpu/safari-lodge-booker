@@ -712,6 +712,10 @@ function AdminDashboard() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [previewGroup, setPreviewGroup] = useState<any>(null);
   const [previewMode, setPreviewMode] = useState<'receipt' | 'voucher'>('receipt');
+  // New operation dialogs (confirm payment / extend / switch)
+  const [confirmTarget, setConfirmTarget] = useState<any>(null);
+  const [extendTarget, setExtendTarget] = useState<any>(null);
+  const [switchTarget, setSwitchTarget] = useState<any>(null);
 
   const loadData = async () => {
     try {
@@ -798,15 +802,25 @@ function AdminDashboard() {
   }, [allBookings, selectedCompany]);
 
   const handleConfirm = async (voucherNo: string) => {
-    await confirmBooking(voucherNo);
-    await loadData();
-    toast.success(`Booking ${voucherNo} confirmed`);
+    // Open the payment-method dialog instead of confirming silently
+    const g = groups.find((g: any) => g.voucherNo === voucherNo);
+    if (!g) return;
+    setConfirmTarget({ voucherNo, companyName: g.companyName, amount: g.grandTotal });
   };
 
   const handleCancel = async (voucherNo: string) => {
-    await cancelBooking(voucherNo);
+    const g = groups.find((g: any) => g.voucherNo === voucherNo);
+    const wasPaid = g?.status === 'confirmed' || !!g?.paid_at;
+    const type = wasPaid ? 'paid_refund' : 'unpaid_auto';
+    const ok = confirm(
+      wasPaid
+        ? 'Cancel this PAID booking? A 50% / 50% refund split will be recorded and posted to accounts.'
+        : 'Cancel this UNPAID booking? It will move to history (hidden from accounts).'
+    );
+    if (!ok) return;
+    await cancelBookingWithPolicy(voucherNo, type);
     await loadData();
-    toast.info(`Booking ${voucherNo} cancelled`);
+    toast.info(`Booking ${voucherNo} cancelled${wasPaid ? ' (refund split applied)' : ''}`);
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.reload(); };
