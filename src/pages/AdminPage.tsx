@@ -1320,7 +1320,16 @@ function AdminDashboard() {
             </div>
           </TabsContent>
 
-          {/* VOUCHER LOOKUP TAB */}
+          {/* BLACKOUTS TAB */}
+          <TabsContent value="blackouts" className="space-y-6">
+            <SiteBlackoutsPanel />
+          </TabsContent>
+
+          {/* STAFF TAB */}
+          <TabsContent value="staff" className="space-y-6">
+            <StaffInvitationsPanel />
+          </TabsContent>
+
           <TabsContent value="vouchers" className="space-y-6">
             <Card className="border-0 shadow-md">
               <CardContent className="pt-5 pb-4">
