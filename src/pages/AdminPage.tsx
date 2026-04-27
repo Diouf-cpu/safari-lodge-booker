@@ -206,21 +206,42 @@ function AccountantDashboard() {
               </SelectContent>
             </Select>
             <ExportButton
-              rows={filteredGroups as any[]}
-              getDate={(g: any) => g.created_at}
-              mapRow={(g: any) => ({
-                voucher: g.voucher_no,
-                company: g.company_name,
-                status: g.status,
-                payment_method: g.payment_method ?? '',
-                payment_reference: g.payment_reference ?? '',
-                paid_at: g.paid_at ?? '',
-                cancellation_type: g.cancellation_type ?? '',
-                cancellation_kept: g.cancellation_kept_amount ?? '',
-                cancellation_refund: g.cancellation_refund_amount ?? '',
-                grand_total: g.grand_total,
-                created_at: g.created_at,
+              rows={(filteredGroups as any[]).flatMap((g: any) => {
+                const bookings = g.bookings && g.bookings.length ? g.bookings : [{}];
+                return bookings.map((b: any, idx: number) => ({
+                  voucher_no: g.voucher_no ?? g.voucherNo ?? '',
+                  site_voucher_no: b.site_voucher_no ?? b.siteVoucherNo ?? '',
+                  company: g.company_name ?? g.companyName ?? '',
+                  contact_email: g.contact_email ?? g.contactEmail ?? '',
+                  contact_phone: g.contact_phone ?? g.contactPhone ?? '',
+                  booker_type: g.booker_type ?? '',
+                  park: b.park_name ?? b.parkName ?? '',
+                  site: b.site_name ?? b.siteName ?? '',
+                  arrival_date: b.arrival_date ?? b.arrivalDate ?? '',
+                  departure_date: b.departure_date ?? b.departureDate ?? '',
+                  nights: b.nights ?? '',
+                  guest_count: b.guest_count ?? '',
+                  rate_per_night: b.rate_per_night ?? b.ratePerNight ?? '',
+                  per_person_rate: b.per_person_rate ?? '',
+                  site_total: b.total_amount ?? b.totalAmount ?? '',
+                  grand_total: idx === 0 ? (g.grand_total ?? g.grandTotal ?? '') : '',
+                  status: g.status,
+                  payment_method: g.payment_method ?? '',
+                  payment_reference: g.payment_reference ?? '',
+                  paid_at: g.paid_at ?? '',
+                  posted_to_accounts_on: g.posted_to_accounts_on ?? '',
+                  expires_at: g.expires_at ?? '',
+                  extended_once: g.extended_once ? 'yes' : 'no',
+                  cancellation_type: g.cancellation_type ?? '',
+                  cancellation_kept: g.cancellation_kept_amount ?? '',
+                  cancellation_refund: g.cancellation_refund_amount ?? '',
+                  cancelled_at: g.cancelled_at ?? '',
+                  switched_from_site: b.original_site_name ?? '',
+                  switched_at: b.switched_at ?? '',
+                  created_at: g.created_at,
+                }));
               })}
+              getDate={(r: any) => r.created_at}
               filenamePrefix="accountant_transactions"
               label="Export"
             />
