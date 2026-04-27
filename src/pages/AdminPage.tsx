@@ -1051,26 +1051,42 @@ function AdminDashboard() {
 
             <div className="flex justify-end">
               <ExportButton
-                rows={filteredGroups as any[]}
-                getDate={(g: any) => g.created_at}
-                mapRow={(g: any) => ({
-                  voucher: g.voucherNo,
-                  company: g.companyName,
-                  email: g.contactEmail,
-                  phone: g.contactPhone,
-                  status: g.status,
-                  payment_method: g.payment_method ?? '',
-                  payment_reference: g.payment_reference ?? '',
-                  paid_at: g.paid_at ?? '',
-                  expires_at: g.expires_at ?? '',
-                  extended_once: g.extended_once ? 'yes' : 'no',
-                  cancellation_type: g.cancellation_type ?? '',
-                  cancellation_kept: g.cancellation_kept_amount ?? '',
-                  cancellation_refund: g.cancellation_refund_amount ?? '',
-                  grand_total: g.grandTotal,
-                  sites: g.bookings.length,
-                  created_at: g.created_at,
+                rows={(filteredGroups as any[]).flatMap((g: any) => {
+                  const bookings = g.bookings && g.bookings.length ? g.bookings : [{}];
+                  return bookings.map((b: any, idx: number) => ({
+                    voucher_no: g.voucherNo ?? g.voucher_no ?? '',
+                    site_voucher_no: b.siteVoucherNo ?? b.site_voucher_no ?? '',
+                    company: g.companyName ?? g.company_name ?? '',
+                    contact_email: g.contactEmail ?? g.contact_email ?? '',
+                    contact_phone: g.contactPhone ?? g.contact_phone ?? '',
+                    booker_type: g.booker_type ?? '',
+                    park: b.parkName ?? b.park_name ?? '',
+                    site: b.siteName ?? b.site_name ?? '',
+                    arrival_date: b.arrivalDate ?? b.arrival_date ?? '',
+                    departure_date: b.departureDate ?? b.departure_date ?? '',
+                    nights: b.nights ?? '',
+                    guest_count: b.guest_count ?? '',
+                    rate_per_night: b.ratePerNight ?? b.rate_per_night ?? '',
+                    per_person_rate: b.per_person_rate ?? '',
+                    site_total: b.totalAmount ?? b.total_amount ?? '',
+                    grand_total: idx === 0 ? (g.grandTotal ?? g.grand_total ?? '') : '',
+                    status: g.status,
+                    payment_method: g.payment_method ?? '',
+                    payment_reference: g.payment_reference ?? '',
+                    paid_at: g.paid_at ?? '',
+                    posted_to_accounts_on: g.posted_to_accounts_on ?? '',
+                    expires_at: g.expires_at ?? '',
+                    extended_once: g.extended_once ? 'yes' : 'no',
+                    cancellation_type: g.cancellation_type ?? '',
+                    cancellation_kept: g.cancellation_kept_amount ?? '',
+                    cancellation_refund: g.cancellation_refund_amount ?? '',
+                    cancelled_at: g.cancelled_at ?? '',
+                    switched_from_site: b.original_site_name ?? '',
+                    switched_at: b.switched_at ?? '',
+                    created_at: g.created_at,
+                  }));
                 })}
+                getDate={(r: any) => r.created_at}
                 filenamePrefix="bookings"
                 label="Export bookings"
               />
