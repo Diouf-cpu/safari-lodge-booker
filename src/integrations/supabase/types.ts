@@ -253,18 +253,21 @@ export type Database = {
           id: string
           name: string
           password_hash: string | null
+          password_must_change: boolean
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
           password_hash?: string | null
+          password_must_change?: boolean
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
           password_hash?: string | null
+          password_must_change?: boolean
         }
         Relationships: []
       }
@@ -501,6 +504,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      boga_site_capacity_check: {
+        Args: { _arrival: string; _departure: string; _site_id: string }
+        Returns: number
+      }
+      change_company_password: {
+        Args: {
+          _company_id: string
+          _current_password: string
+          _new_password: string
+        }
+        Returns: boolean
+      }
+      company_password_status: {
+        Args: { _company_id: string }
+        Returns: {
+          has_password: boolean
+          must_change: boolean
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -511,6 +533,10 @@ export type Database = {
       member_current_status: {
         Args: { _subscription_end: string }
         Returns: string
+      }
+      reset_company_password_to_default: {
+        Args: { _company_id: string }
+        Returns: undefined
       }
       set_company_password: {
         Args: { _company_id: string; _password: string }
