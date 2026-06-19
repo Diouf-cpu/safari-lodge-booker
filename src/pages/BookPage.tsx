@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
-import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, type CompanyDetailed } from '@/store/bookingStore';
+import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, changeCompanyPassword, getCompanyPasswordStatus, DEFAULT_COMPANY_PASSWORD, type CompanyDetailed } from '@/store/bookingStore';
 import { findActiveMemberByEmail, memberStatus } from '@/store/reservationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, CalendarCheck, CalendarIcon, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { differenceInDays, format, eachDayOfInterval, parseISO, startOfDay, isBefore } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InvoicePreview } from '@/components/InvoicePreview';
@@ -104,6 +105,11 @@ export default function BookPage() {
   const [customCompany, setCustomCompany] = useState('');
   const [companyPassword, setCompanyPassword] = useState('');
   const [passwordOk, setPasswordOk] = useState<boolean | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [newPw, setNewPw] = useState('');
+  const [newPwConfirm, setNewPwConfirm] = useState('');
+  const [savingNewPw, setSavingNewPw] = useState(false);
   const [verifyingPw, setVerifyingPw] = useState(false);
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -125,6 +131,7 @@ export default function BookPage() {
   useEffect(() => {
     setCompanyPassword('');
     setPasswordOk(null);
+    setMustChangePassword(false);
   }, [companyName]);
 
   const selectedCompany = companies.find(c => c.name === companyName);
@@ -185,7 +192,9 @@ export default function BookPage() {
   }), [items, availabilityMap]);
 
   const grandTotal = itemDetails.reduce((s, d) => s + d.total, 0);
-  const passwordSatisfied = !passwordGateApplies || passwordOk === true;
+  // Password gate is only satisfied when verified AND the company has set their own
+  // password (i.e. not still on the shared default `boga1234`).
+  const passwordSatisfied = !passwordGateApplies || (passwordOk === true && !mustChangePassword);
   const allValid = resolvedCompany && contactEmail && contactPhone && passwordSatisfied && items.every((item, i) =>
     item.parkId && item.siteId && item.arrivalDate && item.departureDate &&
     itemDetails[i].nights > 0 && itemDetails[i].available !== false
@@ -328,8 +337,17 @@ export default function BookPage() {
                       try {
                         const ok = await verifyCompanyPassword(selectedCompany.id, companyPassword);
                         setPasswordOk(ok);
-                        if (ok) toast.success('Password verified');
-                        else toast.error('Wrong password — please contact BOGA reservations');
+                        if (!ok) { toast.error('Wrong password — please contact BOGA reservations'); return; }
+                        // Verified. Check if they're still on the shared default and must change.
+                        const status = await getCompanyPasswordStatus(selectedCompany.id);
+                        if (status.mustChange) {
+                          setMustChangePassword(true);
+                          setChangePwOpen(true);
+                          toast.info('Please set your own private password to continue');
+                        } else {
+                          setMustChangePassword(false);
+                          toast.success('Password verified');
+                        }
                       } catch (e: any) {
                         toast.error(e.message || 'Verification failed');
                       } finally {
@@ -340,8 +358,20 @@ export default function BookPage() {
                     {verifyingPw ? 'Checking…' : 'Verify'}
                   </Button>
                 </div>
+                {mustChangePassword && (
+                  <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
+                    <KeyRound className="h-4 w-4 text-amber-700 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 text-xs">
+                      <p className="font-semibold text-amber-800 dark:text-amber-300">You're still using the default password.</p>
+                      <p className="text-muted-foreground mt-0.5">For security, please set your own private password before continuing.</p>
+                      <Button size="sm" variant="outline" className="mt-2" onClick={() => setChangePwOpen(true)}>
+                        Set my company password
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Each safari company has a private password issued by BOGA reservations. Required to prevent unauthorised bookings.
+                  Each safari company has a private password issued by BOGA reservations. New companies start with <code className="font-mono">{DEFAULT_COMPANY_PASSWORD}</code> and pick their own on first booking.
                 </p>
               </div>
             )}
