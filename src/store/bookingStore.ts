@@ -77,17 +77,26 @@ export async function verifyCompanyPassword(companyId: string, password: string)
   return data === true;
 }
 
-// Add a company. New rows start with default password `boga1234` + must-change
-// flag set, so they're immediately usable. Best-effort on the password reset
-// (only admins can run it; public callers just upsert).
+// Add a company. If it's a brand-new row, seed it with the shared default
+// password `boga1234` (must-change flag on). Existing rows are left as-is so
+// the public booking page can safely call this on every submit without
+// clobbering a company's chosen password.
 export async function addCompany(name: string): Promise<void> {
+  const existing = await supabase.from('companies').select('id').eq('name', name).maybeSingle();
+  if (existing.data?.id) return; // already exists — don't touch their password
   const { data, error } = await supabase
     .from('companies')
-    .upsert({ name }, { onConflict: 'name' })
+    .insert({ name })
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) {
+    // race: someone else just inserted it — that's fine
+    if ((error as any).code === '23505') return;
+    throw error;
+  }
   if (data?.id) {
+    // Best-effort: only admins are allowed to seed; for public callers the RPC
+    // will reject and we just leave the row password-less (admin sets later).
     await supabase.rpc('reset_company_password_to_default', { _company_id: data.id });
   }
 }
