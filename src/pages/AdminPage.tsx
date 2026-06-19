@@ -108,13 +108,15 @@ function AccountantDashboard() {
 
   const filteredGroups = useMemo(() => {
     return allGroups.filter(g => {
-      // Accountant rules:
-      // - Hide unpaid auto-cancellations entirely (they never went through finance)
-      // - Only show confirmed+paid groups that have been posted to accounts (nightly cron stamps posted_to_accounts_on)
-      // - Paid-refund cancellations are kept (they affect accounts)
+      // Accountant rules (revised):
+      // - Hide unpaid auto-cancellations (no money ever moved)
+      // - Hide still-pending bookings (no financial event yet)
+      // - Show confirmed+paid as soon as payment is recorded — no waiting for
+      //   the midnight cron; this matches how reservation marks payment
+      // - Show paid-refund cancellations (BOGA keeps a fee)
       if (g.cancellation_type === 'unpaid_auto') return false;
       if (g.status === 'pending') return false;
-      if (g.status === 'confirmed' && !g.posted_to_accounts_on) return false;
+      if (g.status === 'confirmed' && !g.paid_at) return false;
 
       const created = g.created_at?.slice(0, 10) || '';
       const inRange = created >= dateFrom && created <= dateTo;
@@ -897,6 +899,9 @@ function AdminDashboard() {
       contactEmail: group.contactEmail,
       contactPhone: group.contactPhone,
       status: group.status,
+      paymentMethod: group.payment_method,
+      paymentReference: group.payment_reference,
+      paidAt: group.paid_at,
       items: group.bookings.map((b: any) => ({
         parkName: b.parkName,
         siteName: b.siteName,

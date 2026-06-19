@@ -238,9 +238,19 @@ export async function sweepMemberRenewalNotifications() {
 
 // ===== BOGA RESERVE per-person booking =====
 export const BOGA_PER_PERSON_RATE = 250; // BWP per person per night
+export const BOGA_SITE_MAX_GUESTS = 6;   // each camp site holds at most 6 people per night
 
 function genVoucher(): string { return (30000 + Math.floor(Math.random() * 10000)).toString(); }
 function genSiteVoucher(): string { return 'S' + (50000 + Math.floor(Math.random() * 50000)).toString(); }
+
+/** Guests still available on a BOGA Reserve site across the requested date range. */
+export async function getBogaSiteRemainingCapacity(siteId: string, arrivalDate: string, departureDate: string): Promise<number> {
+  const { data } = await supabase.rpc('boga_site_capacity_check', {
+    _site_id: siteId, _arrival: arrivalDate, _departure: departureDate,
+  });
+  const used = Number(data || 0);
+  return Math.max(0, BOGA_SITE_MAX_GUESTS - used);
+}
 
 export async function createBogaReserveBooking(payload: {
   fullName: string;
@@ -256,6 +266,16 @@ export async function createBogaReserveBooking(payload: {
 }) {
   const nights = differenceInDays(new Date(payload.departureDate), new Date(payload.arrivalDate));
   if (nights <= 0) throw new Error('Departure must be after arrival');
+
+  // Enforce 6-guests-per-site/per-night cap across overlapping bookings
+  const remaining = await getBogaSiteRemainingCapacity(payload.siteId, payload.arrivalDate, payload.departureDate);
+  if (payload.guestCount > remaining) {
+    if (remaining === 0) {
+      throw new Error(`${payload.siteName} is fully booked (${BOGA_SITE_MAX_GUESTS}/${BOGA_SITE_MAX_GUESTS} guests) for those dates. Pick another camp.`);
+    }
+    throw new Error(`Only ${remaining} spot${remaining === 1 ? '' : 's'} left on ${payload.siteName} for those dates (max ${BOGA_SITE_MAX_GUESTS} per camp).`);
+  }
+
   const total = nights * payload.guestCount * BOGA_PER_PERSON_RATE;
   const voucherNo = genVoucher();
 

@@ -24,6 +24,9 @@ interface InvoicePreviewProps {
     items: InvoiceItem[];
     grandTotal: number;
     status?: string;
+    paymentMethod?: string | null;
+    paymentReference?: string | null;
+    paidAt?: string | null;
   };
   onClose: () => void;
   onConfirm?: () => void;
