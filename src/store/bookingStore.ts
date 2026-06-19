@@ -19,40 +19,56 @@ export interface CompanyDetailed {
   id: string;
   name: string;
   hasPassword: boolean;
+  mustChange: boolean;
 }
 
-// Detailed listing used by staff (Manage List) and the public booking page
-// to know whether a password gate must be enforced for the chosen company.
-// Note: password_hash column is revoked from anon/authenticated SELECT — we
-// approximate hasPassword by querying a server-side function instead.
+export const DEFAULT_COMPANY_PASSWORD = 'boga1234';
+
+// Returns each company plus whether it has a password and whether it's still on
+// the shared default `boga1234` (in which case the booking form will force the
+// company to set their own password before submitting).
 export async function getCompaniesDetailed(): Promise<CompanyDetailed[]> {
   const { data } = await supabase.from('companies').select('id, name').order('name');
   if (!data) return [];
-  // Fetch which ones have a password set (single round-trip via RPC-style check).
-  const ids = data.map(c => c.id);
-  // Use the verify function with empty password — it returns false either way,
-  // but a separate lightweight query: we just call a dedicated RPC if present.
-  // Fallback: call verify with '' for each; false means either no-password OR wrong.
-  // To keep it accurate, expose a minimal "company_has_password" via verify trick:
-  // We treat hasPassword as unknown on the client and let the server enforce.
-  // For UX (to show a Set/Reset label) we maintain a tiny localStorage cache the staff updates.
-  const cache = readPasswordFlagCache();
-  return data.map(c => ({ id: c.id, name: c.name, hasPassword: !!cache[c.id] }));
+  const statuses = await Promise.all(
+    data.map(c => supabase.rpc('company_password_status', { _company_id: c.id }).then(r => r.data?.[0]))
+  );
+  return data.map((c, i) => ({
+    id: c.id,
+    name: c.name,
+    hasPassword: !!statuses[i]?.has_password,
+    mustChange: !!statuses[i]?.must_change,
+  }));
 }
 
-function readPasswordFlagCache(): Record<string, boolean> {
-  try { return JSON.parse(localStorage.getItem('boga_company_pw_flags') || '{}'); } catch { return {}; }
-}
-function writePasswordFlagCache(map: Record<string, boolean>) {
-  try { localStorage.setItem('boga_company_pw_flags', JSON.stringify(map)); } catch {}
+export async function getCompanyPasswordStatus(companyId: string): Promise<{ hasPassword: boolean; mustChange: boolean }> {
+  const { data } = await supabase.rpc('company_password_status', { _company_id: companyId });
+  const row = data?.[0];
+  return { hasPassword: !!row?.has_password, mustChange: !!row?.must_change };
 }
 
+// Admin-only: explicitly set a custom password (rarely used now).
 export async function setCompanyPassword(companyId: string, password: string): Promise<void> {
   const { error } = await supabase.rpc('set_company_password', { _company_id: companyId, _password: password });
   if (error) throw error;
-  const cache = readPasswordFlagCache();
-  cache[companyId] = true;
-  writePasswordFlagCache(cache);
+}
+
+// Admin-only: reset back to the shared default `boga1234`. The company will be
+// forced to pick their own password the next time they try to submit a booking.
+export async function resetCompanyPasswordToDefault(companyId: string): Promise<void> {
+  const { error } = await supabase.rpc('reset_company_password_to_default', { _company_id: companyId });
+  if (error) throw error;
+}
+
+// Public: company-initiated password change after entering the default.
+export async function changeCompanyPassword(companyId: string, currentPassword: string, newPassword: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('change_company_password', {
+    _company_id: companyId,
+    _current_password: currentPassword,
+    _new_password: newPassword,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 export async function verifyCompanyPassword(companyId: string, password: string): Promise<boolean> {
@@ -61,8 +77,28 @@ export async function verifyCompanyPassword(companyId: string, password: string)
   return data === true;
 }
 
+// Add a company. If it's a brand-new row, seed it with the shared default
+// password `boga1234` (must-change flag on). Existing rows are left as-is so
+// the public booking page can safely call this on every submit without
+// clobbering a company's chosen password.
 export async function addCompany(name: string): Promise<void> {
-  await supabase.from('companies').upsert({ name }, { onConflict: 'name' });
+  const existing = await supabase.from('companies').select('id').eq('name', name).maybeSingle();
+  if (existing.data?.id) return; // already exists — don't touch their password
+  const { data, error } = await supabase
+    .from('companies')
+    .insert({ name })
+    .select('id')
+    .single();
+  if (error) {
+    // race: someone else just inserted it — that's fine
+    if ((error as any).code === '23505') return;
+    throw error;
+  }
+  if (data?.id) {
+    // Best-effort: only admins are allowed to seed; for public callers the RPC
+    // will reject and we just leave the row password-less (admin sets later).
+    await supabase.rpc('reset_company_password_to_default', { _company_id: data.id });
+  }
 }
 
 export async function deleteCompany(name: string): Promise<void> {
