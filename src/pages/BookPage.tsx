@@ -475,6 +475,81 @@ export default function BookPage() {
       {showInvoice && (
         <InvoicePreview group={invoiceData} onClose={() => setShowInvoice(false)} onConfirm={handleSubmit} />
       )}
+
+      <Dialog open={changePwOpen} onOpenChange={(o) => { if (!savingNewPw) setChangePwOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set your company password</DialogTitle>
+            <DialogDescription>
+              You're currently using the shared default password. Pick a private password for <strong>{companyName}</strong> — you'll use it for every future booking.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">New password</Label>
+              <Input
+                type="password"
+                autoFocus
+                className="mt-1.5"
+                placeholder="Min. 4 characters"
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Confirm new password</Label>
+              <Input
+                type="password"
+                className="mt-1.5"
+                placeholder="Type it again"
+                value={newPwConfirm}
+                onChange={e => setNewPwConfirm(e.target.value)}
+              />
+            </div>
+            {newPw && newPwConfirm && newPw !== newPwConfirm && (
+              <p className="text-xs text-destructive">Passwords don't match.</p>
+            )}
+            {newPw && newPw === DEFAULT_COMPANY_PASSWORD && (
+              <p className="text-xs text-destructive">Pick something other than the shared default password.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={savingNewPw} onClick={() => setChangePwOpen(false)}>Cancel</Button>
+            <Button
+              disabled={
+                savingNewPw ||
+                newPw.length < 4 ||
+                newPw !== newPwConfirm ||
+                newPw === DEFAULT_COMPANY_PASSWORD
+              }
+              onClick={async () => {
+                if (!selectedCompany) return;
+                setSavingNewPw(true);
+                try {
+                  const ok = await changeCompanyPassword(selectedCompany.id, companyPassword, newPw);
+                  if (!ok) {
+                    toast.error('Could not update password — try verifying the default password again');
+                    return;
+                  }
+                  toast.success('Password updated — you can now continue booking');
+                  setCompanyPassword(newPw);
+                  setPasswordOk(true);
+                  setMustChangePassword(false);
+                  setChangePwOpen(false);
+                  setNewPw(''); setNewPwConfirm('');
+                } catch (e: any) {
+                  toast.error(e.message || 'Failed to update password');
+                } finally {
+                  setSavingNewPw(false);
+                }
+              }}
+              className="amber-glow text-accent-foreground border-0"
+            >
+              {savingNewPw ? 'Saving…' : 'Save password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
