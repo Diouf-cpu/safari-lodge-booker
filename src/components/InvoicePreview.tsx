@@ -123,6 +123,12 @@ function generatePDF(group: InvoicePreviewProps['group'], mode: string = 'previe
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text(`Total ${isReceipt ? 'Paid' : 'Due'}: P${group.grandTotal.toLocaleString()}`, pageWidth - 20, finalY + 10, { align: 'right' });
+    if (isReceipt && group.paymentMethod) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const ref = group.paymentReference ? ` (Ref: ${group.paymentReference})` : '';
+      doc.text(`Payment method: ${group.paymentMethod}${ref}`, pageWidth - 20, finalY + 18, { align: 'right' });
+    }
   }
 
   const footerY = isVoucher ? finalY + 5 : finalY + 25;
@@ -215,8 +221,8 @@ export function InvoicePreview({ group, onClose, onConfirm, mode = 'preview' }: 
 
           {/* Totals */}
           {mode !== 'voucher' && (
-            <div className="flex justify-end mb-8">
-              <div className="w-64">
+            <div className="flex justify-end mb-4">
+              <div className="w-72">
                 <div className="flex justify-between py-2 text-sm text-muted-foreground">
                   <span>Rate per night</span>
                   <span>P{RATE_PER_NIGHT}</span>
@@ -225,6 +231,18 @@ export function InvoicePreview({ group, onClose, onConfirm, mode = 'preview' }: 
                   <span>Total {mode === 'receipt' ? 'Paid' : 'Due'}</span>
                   <span>P{group.grandTotal.toLocaleString()}</span>
                 </div>
+                {mode === 'receipt' && group.paymentMethod && (
+                  <div className="mt-3 p-3 rounded-lg bg-success/10 border border-success/20">
+                    <p className="text-[10px] uppercase tracking-wider text-success/80 font-semibold mb-0.5">Payment received</p>
+                    <p className="text-sm font-semibold">{group.paymentMethod}</p>
+                    {group.paymentReference && (
+                      <p className="text-xs text-muted-foreground mt-0.5">Ref: {group.paymentReference}</p>
+                    )}
+                    {group.paidAt && (
+                      <p className="text-xs text-muted-foreground">on {format(new Date(group.paidAt), 'dd MMM yyyy, HH:mm')}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
