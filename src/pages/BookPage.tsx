@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
-import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, changeCompanyPassword, getCompanyPasswordStatus, DEFAULT_COMPANY_PASSWORD, type CompanyDetailed } from '@/store/bookingStore';
+import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, changeCompanyPassword, getCompanyPasswordStatus, type CompanyDetailed } from '@/store/bookingStore';
 import { findActiveMemberByEmail, memberStatus } from '@/store/reservationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -371,7 +371,7 @@ export default function BookPage() {
                   </div>
                 )}
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Each safari company has a private password issued by BOGA reservations. New companies start with <code className="font-mono">{DEFAULT_COMPANY_PASSWORD}</code> and pick their own on first booking.
+                  Each safari company has a private password issued by BOGA reservations. New companies get a unique dummy password from the reservations team and pick their own on first booking.
                 </p>
               </div>
             )}
@@ -509,8 +509,8 @@ export default function BookPage() {
             {newPw && newPwConfirm && newPw !== newPwConfirm && (
               <p className="text-xs text-destructive">Passwords don't match.</p>
             )}
-            {newPw && newPw === DEFAULT_COMPANY_PASSWORD && (
-              <p className="text-xs text-destructive">Pick something other than the shared default password.</p>
+            {newPw && newPw === companyPassword && (
+              <p className="text-xs text-destructive">Pick something different from your current dummy password.</p>
             )}
           </div>
           <DialogFooter>
@@ -520,7 +520,7 @@ export default function BookPage() {
                 savingNewPw ||
                 newPw.length < 4 ||
                 newPw !== newPwConfirm ||
-                newPw === DEFAULT_COMPANY_PASSWORD
+                newPw === companyPassword
               }
               onClick={async () => {
                 if (!selectedCompany) return;

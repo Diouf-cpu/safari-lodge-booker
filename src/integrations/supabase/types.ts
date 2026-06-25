@@ -250,6 +250,7 @@ export type Database = {
       companies: {
         Row: {
           created_at: string
+          default_password: string | null
           id: string
           name: string
           password_hash: string | null
@@ -257,6 +258,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_password?: string | null
           id?: string
           name: string
           password_hash?: string | null
@@ -264,6 +266,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_password?: string | null
           id?: string
           name?: string
           password_hash?: string | null
@@ -523,6 +526,7 @@ export type Database = {
           must_change: boolean
         }[]
       }
+      generate_default_company_password: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -530,14 +534,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_company_defaults: {
+        Args: never
+        Returns: {
+          company_id: string
+          default_password: string
+        }[]
+      }
       member_current_status: {
         Args: { _subscription_end: string }
         Returns: string
       }
       reset_company_password_to_default: {
         Args: { _company_id: string }
-        Returns: undefined
+        Returns: string
       }
+      seed_company_password: { Args: { _company_id: string }; Returns: string }
       set_company_password: {
         Args: { _company_id: string; _password: string }
         Returns: undefined

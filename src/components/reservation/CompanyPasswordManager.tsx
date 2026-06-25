@@ -3,37 +3,49 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Trash2, Plus, ShieldCheck, AlertCircle, RotateCcw, Copy } from 'lucide-react';
+import { Trash2, Plus, ShieldCheck, AlertCircle, RotateCcw, Copy, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import {
   CompanyDetailed,
   getCompaniesDetailed,
-  addCompany,
   deleteCompany,
   resetCompanyPasswordToDefault,
-  DEFAULT_COMPANY_PASSWORD,
 } from '@/store/bookingStore';
 
 /**
- * Staff-only panel. Each company starts with the shared default password
- * `boga1234` — admin can press "Reset password" any time to put a company
- * back to the default (e.g. when a company forgets theirs). The company is
- * then forced to set their own password the next time they book.
+ * Staff-only panel. Each company has a UNIQUE dummy password issued by the
+ * system (visible here to the admin). The company is forced to set their own
+ * private password the next time they book — at which point the dummy is
+ * cleared and replaced with a "Own password set" badge. Press Reset to issue
+ * a brand-new dummy any time (e.g. when they forget theirs).
  */
 export function CompanyPasswordManager() {
   const [companies, setCompanies] = useState<CompanyDetailed[]>([]);
   const [newName, setNewName] = useState('');
   const [resetTarget, setResetTarget] = useState<CompanyDetailed | null>(null);
+  const [newPwd, setNewPwd] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<Record<string, boolean>>({});
 
   const reload = async () => setCompanies(await getCompaniesDetailed());
   useEffect(() => { reload(); }, []);
 
   const handleAdd = async () => {
-    if (!newName.trim()) return;
+    const name = newName.trim();
+    if (!name) return;
     try {
-      await addCompany(newName.trim());
+      // insert (ignore dup), then seed a unique dummy
+      const existing = await supabase.from('companies').select('id').eq('name', name).maybeSingle();
+      let id = existing.data?.id;
+      if (!id) {
+        const { data, error } = await supabase.from('companies').insert({ name }).select('id').single();
+        if (error) throw error;
+        id = data.id;
+      }
+      const { data: pwd, error: seedErr } = await supabase.rpc('seed_company_password', { _company_id: id });
+      if (seedErr) throw seedErr;
       setNewName('');
       await reload();
-      toast.success(`Company added. Default password is "${DEFAULT_COMPANY_PASSWORD}" — share it privately.`);
+      toast.success(`Company added. Dummy password: ${pwd}`);
     } catch (e: any) {
       toast.error(e.message || 'Failed to add company');
     }
@@ -49,9 +61,8 @@ export function CompanyPasswordManager() {
   const handleReset = async () => {
     if (!resetTarget) return;
     try {
-      await resetCompanyPasswordToDefault(resetTarget.id);
-      toast.success(`Password reset. New password: ${DEFAULT_COMPANY_PASSWORD}`);
-      setResetTarget(null);
+      const pwd = await resetCompanyPasswordToDefault(resetTarget.id);
+      setNewPwd(pwd);
       await reload();
     } catch (e: any) {
       toast.error(e.message || 'Failed to reset password');
@@ -63,8 +74,9 @@ export function CompanyPasswordManager() {
       <div className="p-3 mb-5 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs">
         <p className="font-semibold mb-1">How company passwords work</p>
         <p className="text-muted-foreground">
-          New companies start with the shared default password <code className="px-1 py-0.5 rounded bg-muted font-mono">{DEFAULT_COMPANY_PASSWORD}</code>.
-          The first time they book they'll be asked to set their own private password. If they forget it, press <strong>Reset</strong> below to put it back to the default.
+          Each company is issued a <strong>unique dummy password</strong> when added — visible here so you can share it privately.
+          The first time they book they're forced to set their own private password (the dummy then disappears).
+          Press <strong>Reset</strong> to generate a fresh dummy any time.
         </p>
       </div>
 
@@ -86,11 +98,31 @@ export function CompanyPasswordManager() {
         )}
         {companies.map(c => (
           <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-wrap">
               <span className="font-medium truncate">{c.name}</span>
-              {c.mustChange ? (
-                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400">
-                  <AlertCircle className="h-3 w-3" /> Default password
+              {c.mustChange && c.defaultPassword ? (
+                <span className="inline-flex items-center gap-2 text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="h-3 w-3" />
+                  Dummy:
+                  <code className="font-mono font-bold">
+                    {reveal[c.id] ? c.defaultPassword : '••••••••'}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => setReveal(r => ({ ...r, [c.id]: !r[c.id] }))}
+                    className="hover:opacity-70"
+                    title={reveal[c.id] ? 'Hide' : 'Reveal'}
+                  >
+                    {reveal[c.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard?.writeText(c.defaultPassword!); toast.success('Copied'); }}
+                    className="hover:opacity-70"
+                    title="Copy"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
                 </span>
               ) : c.hasPassword ? (
                 <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-success/15 text-success">
@@ -103,12 +135,8 @@ export function CompanyPasswordManager() {
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setResetTarget(c)}
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset password
+              <Button size="sm" variant="outline" onClick={() => { setNewPwd(null); setResetTarget(c); }}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
               </Button>
               <Button
                 size="sm"
@@ -123,38 +151,42 @@ export function CompanyPasswordManager() {
         ))}
       </div>
 
-      <Dialog open={!!resetTarget} onOpenChange={(o) => { if (!o) setResetTarget(null); }}>
+      <Dialog open={!!resetTarget} onOpenChange={(o) => { if (!o) { setResetTarget(null); setNewPwd(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset password — {resetTarget?.name}</DialogTitle>
             <DialogDescription>
-              This will set their password back to the shared default. They'll be asked to pick their own private password the next time they try to book.
+              {newPwd
+                ? 'A new dummy password has been generated. Share it privately — they will be forced to set their own private password the next time they book.'
+                : 'This will issue a brand-new dummy password for this company. Their current password will stop working immediately.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="p-4 rounded-lg bg-muted flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">New password</p>
-              <p className="font-mono text-lg font-bold">{DEFAULT_COMPANY_PASSWORD}</p>
+
+          {newPwd && (
+            <div className="p-4 rounded-lg bg-muted flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">New dummy password</p>
+                <p className="font-mono text-2xl font-bold tracking-widest">{newPwd}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { navigator.clipboard?.writeText(newPwd); toast.success('Copied'); }}
+              >
+                <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard?.writeText(DEFAULT_COMPANY_PASSWORD);
-                toast.success('Copied');
-              }}
-            >
-              <Copy className="h-3.5 w-3.5 mr-1" /> Copy
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Share <code className="font-mono">{DEFAULT_COMPANY_PASSWORD}</code> privately with {resetTarget?.name}. Anyone with this default password will be forced to set a new one before submitting a booking.
-          </p>
+          )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetTarget(null)}>Cancel</Button>
-            <Button onClick={handleReset} className="amber-glow text-accent-foreground border-0">
-              Reset password
+            <Button variant="outline" onClick={() => { setResetTarget(null); setNewPwd(null); }}>
+              {newPwd ? 'Done' : 'Cancel'}
             </Button>
+            {!newPwd && (
+              <Button onClick={handleReset} className="amber-glow text-accent-foreground border-0">
+                Generate new password
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
