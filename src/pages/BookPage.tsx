@@ -371,7 +371,7 @@ export default function BookPage() {
                   </div>
                 )}
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Each safari company has a private password issued by BOGA reservations. New companies start with <code className="font-mono">{DEFAULT_COMPANY_PASSWORD}</code> and pick their own on first booking.
+                  Each safari company has a private password issued by BOGA reservations. New companies get a unique dummy password from the reservations team and pick their own on first booking.
                 </p>
               </div>
             )}
