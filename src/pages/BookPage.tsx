@@ -509,8 +509,8 @@ export default function BookPage() {
             {newPw && newPwConfirm && newPw !== newPwConfirm && (
               <p className="text-xs text-destructive">Passwords don't match.</p>
             )}
-            {newPw && newPw === DEFAULT_COMPANY_PASSWORD && (
-              <p className="text-xs text-destructive">Pick something other than the shared default password.</p>
+            {newPw && newPw === companyPassword && (
+              <p className="text-xs text-destructive">Pick something different from your current dummy password.</p>
             )}
           </div>
           <DialogFooter>
