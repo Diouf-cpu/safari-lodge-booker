@@ -520,7 +520,7 @@ export default function BookPage() {
                 savingNewPw ||
                 newPw.length < 4 ||
                 newPw !== newPwConfirm ||
-                newPw === DEFAULT_COMPANY_PASSWORD
+                newPw === companyPassword
               }
               onClick={async () => {
                 if (!selectedCompany) return;
