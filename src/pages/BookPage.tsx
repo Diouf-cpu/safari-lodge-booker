@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parks, RATE_PER_NIGHT } from '@/data/parks';
-import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, changeCompanyPassword, getCompanyPasswordStatus, DEFAULT_COMPANY_PASSWORD, type CompanyDetailed } from '@/store/bookingStore';
+import { addBookingGroup, isDateRangeAvailable, getBookedDatesForSite, getCompaniesDetailed, verifyCompanyPassword, changeCompanyPassword, getCompanyPasswordStatus, type CompanyDetailed } from '@/store/bookingStore';
 import { findActiveMemberByEmail, memberStatus } from '@/store/reservationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
