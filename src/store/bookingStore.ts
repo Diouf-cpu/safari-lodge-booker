@@ -20,24 +20,24 @@ export interface CompanyDetailed {
   name: string;
   hasPassword: boolean;
   mustChange: boolean;
+  /** Plaintext dummy password visible to admins until the company sets their own. */
+  defaultPassword: string | null;
 }
 
-export const DEFAULT_COMPANY_PASSWORD = 'boga1234';
-
-// Returns each company plus whether it has a password and whether it's still on
-// the shared default `boga1234` (in which case the booking form will force the
-// company to set their own password before submitting).
 export async function getCompaniesDetailed(): Promise<CompanyDetailed[]> {
   const { data } = await supabase.from('companies').select('id, name').order('name');
   if (!data) return [];
-  const statuses = await Promise.all(
-    data.map(c => supabase.rpc('company_password_status', { _company_id: c.id }).then(r => r.data?.[0]))
-  );
+  const [statuses, defaults] = await Promise.all([
+    Promise.all(data.map(c => supabase.rpc('company_password_status', { _company_id: c.id }).then(r => r.data?.[0]))),
+    supabase.rpc('list_company_defaults').then(r => r.data || []),
+  ]);
+  const defMap = new Map<string, string | null>((defaults as any[]).map(d => [d.company_id, d.default_password]));
   return data.map((c, i) => ({
     id: c.id,
     name: c.name,
     hasPassword: !!statuses[i]?.has_password,
     mustChange: !!statuses[i]?.must_change,
+    defaultPassword: defMap.get(c.id) ?? null,
   }));
 }
 
@@ -47,17 +47,16 @@ export async function getCompanyPasswordStatus(companyId: string): Promise<{ has
   return { hasPassword: !!row?.has_password, mustChange: !!row?.must_change };
 }
 
-// Admin-only: explicitly set a custom password (rarely used now).
 export async function setCompanyPassword(companyId: string, password: string): Promise<void> {
   const { error } = await supabase.rpc('set_company_password', { _company_id: companyId, _password: password });
   if (error) throw error;
 }
 
-// Admin-only: reset back to the shared default `boga1234`. The company will be
-// forced to pick their own password the next time they try to submit a booking.
-export async function resetCompanyPasswordToDefault(companyId: string): Promise<void> {
-  const { error } = await supabase.rpc('reset_company_password_to_default', { _company_id: companyId });
+/** Admin-only: issue a brand-new dummy password and return it for the admin to share. */
+export async function resetCompanyPasswordToDefault(companyId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('reset_company_password_to_default', { _company_id: companyId });
   if (error) throw error;
+  return (data as string) || '';
 }
 
 // Public: company-initiated password change after entering the default.
